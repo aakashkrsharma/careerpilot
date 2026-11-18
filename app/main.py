@@ -1,0 +1,43 @@
+"""
+CareerPilot - AI-powered candidate profile management system
+"""
+import streamlit as st
+from app.database.database import init_db
+from app.services.candidate_service import CandidateService
+from app.services.resume_service import ResumeService
+from app.ui.upload_page import show_upload_page
+from app.ui.review_page import show_review_page
+from app.ui.dashboard_page import show_dashboard_page
+
+# Initialize database
+init_db()
+
+# Set up Streamlit page configuration
+st.set_page_config(
+    page_title="CareerPilot",
+    page_icon="📊",
+    layout="wide"
+)
+
+# App title and description
+st.title("📊 CareerPilot - AI-powered Candidate Profile Management")
+st.markdown("""
+Welcome to CareerPilot, your local-first AI job hunting assistant.
+Upload your resume, let AI extract information, review it, and store your profile.
+""")
+
+# Navigation sidebar
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["Dashboard", "Upload Resume", "Review Information"])
+
+# Page routing
+if page == "Dashboard":
+    show_dashboard_page()
+elif page == "Upload Resume":
+    show_upload_page()
+elif page == "Review Information":
+    show_review_page()
+
+# Initialize services
+candidate_service = CandidateService()
+resume_service = ResumeService()
