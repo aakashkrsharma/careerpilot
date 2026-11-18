@@ -12,7 +12,7 @@ Implemented and verified:
 - application of approved profile values, filling empty fields by default and replacing existing values only after a separate explicit choice
 - integration coverage for the full service workflow, candidate scoping, and unique-email rollback
 
-Ten tests pass. A complete live Ollama/review/approval workflow and clean-virtualenv install remain unverified.
+Ten tests pass.
 
 ## Phase 2: configuration and isolation — complete
 
@@ -22,15 +22,19 @@ Implemented and decided:
 - The current prototype is explicitly single-user. Candidate IDs scope candidate/resume/extraction operations; account-level isolation and authentication are out of scope until multi-user support is requested.
 - Upload-page orchestration remains in the UI because it coordinates existing services without duplicating core business rules; no additional abstraction is needed now.
 
-## Phase 3: verify and stabilize — next
+## Phase 3: verify and stabilize — complete
 
-1. Run a clean-virtualenv dependency installation using `requirements.txt`.
-2. Run the application with the configured local Ollama model and verify upload → review → approval and dashboard display in the UI.
-3. Update all affected AI_CONTEXT documents from verified behavior before declaring the next phase complete.
-4. Consider broader job-hunting features only after the pipeline and isolation expectations are stable.
+Verified:
 
-## Out of scope for the immediate phase
+- Installed `requirements.txt` in a clean Python 3.14.4 virtual environment; imports and `pip check` passed.
+- Used local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume to verify upload → extraction → review/approval → Dashboard display in the live Streamlit UI.
+- Used a temporary database and test workspace; the user's existing database and resume files were not used or changed.
+- Updated AI_CONTEXT documentation to reflect the verified behavior.
 
+## After Phase 3
+
+- Gather user feedback and choose the next job-hunting feature before expanding scope.
+- Keep account-level isolation out of scope unless multi-user support is requested.
 - Paid or remote LLM APIs
 - Microservices or a job queue
 - Production hosting and multi-user authentication

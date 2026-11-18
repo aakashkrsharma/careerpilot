@@ -36,7 +36,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-The runtime packages are pinned in the single canonical manifest. The dependency installation was verified in the existing Python 3.14.4 environment; a clean-virtualenv installation has not yet been tested.
+The runtime packages are pinned in the single canonical manifest. Installation from this manifest was verified in both the existing environment and a clean Python 3.14.4 virtual environment.
 
 ## 4. Install and start Ollama
 

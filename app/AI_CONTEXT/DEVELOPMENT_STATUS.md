@@ -24,13 +24,13 @@ The initial source/dependency audit and Phase 1 of the Resume Processing Pipelin
 - The prototype is single-user. Candidate IDs scope candidate/resume/extraction operations; no account-level isolation exists.
 - Upload and LLM processing run synchronously in Streamlit.
 - Existing SQLite databases are not migrated automatically; `create_all()` only creates missing tables.
-- Clean-virtualenv installation and the complete live Ollama/review/approval workflow have not been verified.
 
 ## Tests and dependencies
 
 - Ten `unittest` cases cover PDF/DOCX/TXT extraction, invalid input, mocked Ollama success/failure and configuration, pending persistence, review/approval, no-overwrite behavior, candidate scoping, unique-email rollback, and dashboard resume display.
 - `requirements.txt` is the sole pinned runtime manifest. It includes Streamlit, SQLAlchemy, Pydantic, pandas, Ollama, HTTPX, PyPDF2, python-docx, and email-validator.
-- Dependency installation, UI imports, and `pip check` pass in the existing Python 3.14.4 virtual environment.
+- Existing-environment checks and a clean Python 3.14.4 virtualenv install from `requirements.txt` pass; `pip check` and imports pass in both.
+- A live browser run using local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume verified upload, extraction, review approval, and approved data on the Dashboard in an isolated temporary database.
 - Existing SQLAlchemy and PyPDF2 deprecation warnings remain.
 
 ## Project principles to preserve
@@ -49,3 +49,7 @@ The upload → extraction → pending review → correction/approval → candida
 ## Phase 2 conclusion
 
 The Ollama client uses the configured local host and model. The current product scope is a single-user local application with candidate-ID scoping; account-level isolation is out of scope until multi-user support is requested. The UI continues to orchestrate existing services because a separate upload-pipeline abstraction is not currently justified.
+
+## Phase 3 conclusion
+
+The pinned dependencies install in a clean Python 3.14.4 virtual environment. The live synthetic resume flow was verified through Streamlit and local Ollama, including approval and Dashboard display. The user's existing database was not used or modified during this verification.

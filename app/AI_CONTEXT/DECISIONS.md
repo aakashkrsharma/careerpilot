@@ -28,6 +28,6 @@ This document distinguishes the project handoff's intended principles from choic
 
 ## Remaining gaps
 
-- There is no migration strategy, and clean-environment installation remains unverified.
+- There is no migration strategy for existing SQLite databases.
 
 Do not treat unimplemented behavior or earlier aspirational documentation as a completed technical decision.
