@@ -2,10 +2,10 @@
 
 ## Run locally
 
-Start the app from the project root:
+Start the app from the project root (the directory containing `app/` and `requirements.txt`):
 
 ```bash
-streamlit run app/main.py
+python -m streamlit run app/main.py
 ```
 
 The app has Dashboard, Upload Resume, and Review Information pages.

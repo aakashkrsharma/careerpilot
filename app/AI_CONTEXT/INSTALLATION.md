@@ -61,11 +61,13 @@ export OLLAMA_MODEL=llama3
 
 ## 6. Run the app
 
-Launch the Streamlit UI:
+From the project root (the directory containing `app/` and `requirements.txt`), launch the Streamlit UI:
 
 ```bash
-streamlit run app/main.py
+python -m streamlit run app/main.py
 ```
+
+The app's package imports and relative data paths expect the project root to be the working directory; do not launch it from inside `app/`.
 
 The app should open in the default Streamlit browser or be available at:
 
@@ -96,6 +98,12 @@ On first launch, the app initializes the SQLite database and creates the require
 - ensure the app starts from the project root
 - confirm the `careerpilot.db` file can be created in the repo root
 - check that `init_db()` runs from `app/main.py`
+
+### `ModuleNotFoundError: No module named 'app'`
+
+- change to the project root (the directory containing `app/` and `requirements.txt`)
+- activate the project's virtual environment
+- run `python -m streamlit run app/main.py` from that directory, not from inside `app/`
 
 ## Current installation assumption
 
