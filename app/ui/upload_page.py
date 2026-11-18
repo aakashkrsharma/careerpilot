@@ -2,11 +2,11 @@
 Upload page for CareerPilot - handles resume uploads and initial processing
 """
 import streamlit as st
-from app.services.resume_service import resume_service
 from app.services.candidate_service import candidate_service
+from app.services.extraction_service import extraction_service
 from app.services.llm_service import llm_service
-from app.database.models import Candidate, Resume, ExtractedInfo
-from app.database.database import get_db
+from app.services.resume_service import resume_service
+from sqlalchemy.exc import SQLAlchemyError
 
 def show_upload_page():
     """Display the upload page for resumes"""
@@ -17,6 +17,7 @@ def show_upload_page():
     
     # Get existing candidates
     candidates = candidate_service.get_all_candidates()
+    candidate_id = None
     
     if candidates:
         candidate_options = {f"{c.full_name} ({c.email})": c.id for c in candidates}
@@ -27,7 +28,6 @@ def show_upload_page():
         )
         candidate_id = candidate_options[selected_candidate]
     else:
-        # Create new candidate
         with st.form("new_candidate_form"):
             full_name = st.text_input("Full Name")
             email = st.text_input("Email")
@@ -48,7 +48,7 @@ def show_upload_page():
     
     uploaded_file = st.file_uploader(
         "Choose a resume file (PDF, DOCX, or TXT)", 
-        type=["pdf", "docx", "doc", "txt"],
+        type=["pdf", "docx", "txt"],
         key="resume_uploader"
     )
     
@@ -66,6 +66,10 @@ def show_upload_page():
         
         # Process the resume
         if st.button("Process Resume"):
+            if candidate_id is None:
+                st.error("Create or select a candidate before processing a resume.")
+                return
+
             with st.spinner("Processing resume..."):
                 try:
                     # Save the uploaded file
@@ -91,11 +95,11 @@ def show_upload_page():
                         candidate_id=candidate_id,
                         resume_id=resume.id
                     )
+                    extraction_service.save_pending_extraction(extraction_result)
                     
-                    st.success("Resume processed successfully!")
+                    st.success("Resume processed. Review the extracted information before approval.")
                     st.json(extraction_result["extracted_data"])
-                    
-                except Exception as e:
+                except (ValueError, OSError, SQLAlchemyError) as e:
                     st.error(f"Error processing resume: {str(e)}")
     else:
         st.info("Please upload a resume file to get started")

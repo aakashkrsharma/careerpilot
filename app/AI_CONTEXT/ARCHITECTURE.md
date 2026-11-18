@@ -20,6 +20,7 @@ CareerPilot uses a simple layered architecture centered on a Streamlit frontend 
 │ - CandidateService           │
 │ - ResumeService              │
 │ - LLMService                 │
+│ - ExtractionService          │
 └──────────────┬───────────────┘
                │ reads/writes
                ▼
@@ -51,7 +52,7 @@ Location: `app/database/`
 
 - database is SQLite by default (`careerpilot.db`)
 - data is stored locally in a single file
-- SQLAlchemy sessions are opened per method invocation and closed in `finally` blocks
+- SQLAlchemy sessions are scoped to service operations and closed after the transaction completes
 
 ## Service layer
 
@@ -82,7 +83,15 @@ Responsibilities:
 
 - build a structured extraction prompt
 - call the local Ollama server using `ollama.generate(...)`
-- parse the JSON output or use a fallback sample payload when extraction fails
+- validate JSON output against the Pydantic extraction schema
+- surface Ollama and response-validation failures without fabricating candidate data
+
+### `ExtractionService`
+
+- verify candidate/resume relationships and extracted field types
+- save model output, prompt, and raw response as pending review
+- save reviewer corrections and approval state transactionally
+- update candidate profile fields only after approval, preserving populated values unless replacement is explicitly selected
 
 ## UI layer
 
@@ -91,16 +100,17 @@ Location: `app/ui/`
 ### `upload_page.py`
 
 - lets the user select or create a candidate
-- accepts a resume file
-- saves the file, extracts text, creates a resume record, and calls the LLM extraction flow
-- shows extraction output as JSON in the UI
+- validates and saves the file, extracts text, creates a resume record, and calls the LLM extraction flow
+- persists valid output as pending review before showing it
+- reports parsing, LLM, and persistence failures instead of continuing with empty text or sample data
 
 ### `review_page.py`
 
 - loads the candidate's resumes and queries an extraction row for the selected resume
 - exposes editable text fields for core profile attributes
-- allows the user to approve or reject the extracted data
-- attempts to save updated field values, but the current detached-instance/session handling does not reliably persist them
+- allows the user to correct and approve extracted data
+- persists review edits and timestamps through `ExtractionService`
+- applies approved values to empty candidate fields; replacing populated values requires explicit confirmation
 
 ### `dashboard_page.py`
 
@@ -109,16 +119,14 @@ Location: `app/ui/`
 - shows count of resumes and extracted info records
 - renders a profile detail section for a selected candidate
 
-## Current data flow and gaps
+## Current data flow
 
 1. The upload page saves the original resume under `data/resumes/`.
-2. `ResumeService` extracts text and stores it with a `Resume` row.
-3. The upload page calls `LLMService`, which returns extracted fields for display.
-4. The extraction result is not saved to `ExtractedInfo`; the review page therefore cannot review results produced through this upload path.
-5. The review page currently edits a detached ORM instance and commits a separate session, so updates are not reliably persisted.
-6. Candidate profile data is not updated from approved extraction data.
-
-The intended pipeline must persist extraction as pending review, persist corrections and approval, then apply approved fields to the candidate profile without silently overwriting existing values.
+2. `ResumeService` extracts text and stores it with a `Resume` row, initially unprocessed.
+3. `LLMService` calls Ollama and validates its JSON output.
+4. `ExtractionService` persists valid output as pending review and marks the resume processed.
+5. The review page saves corrections and approval status in one database transaction.
+6. Approved fields update empty profile values; replacing populated values requires explicit reviewer confirmation.
 
 ## Runtime assumptions
 
@@ -138,4 +146,4 @@ This architecture is intentionally lightweight and therefore has tradeoffs:
 
 ## Security and robustness notes
 
-The app is currently a local prototype. It has no authentication or user-level isolation, and uploaded files contain potentially sensitive personal information. It should not be exposed as a multi-user service without explicit access control and data-protection work. LLM/parser fallback behavior also needs to distinguish real extraction from failure.
+The app is currently a local prototype. It has no authentication or user-level isolation, and uploaded files contain potentially sensitive personal information. It should not be exposed as a multi-user service without explicit access control and data-protection work. Extraction and parsing failures are surfaced to the user rather than converted to sample data.

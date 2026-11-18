@@ -10,7 +10,6 @@ CareerPilot is structured as a small Python application with a Streamlit UI, a S
 careerpilot/
 ├── AGENTS.md
 ├── requirements.txt
-├── requirements_new.txt
 ├── app/
 │   ├── main.py
 │   ├── database/
@@ -22,6 +21,7 @@ careerpilot/
 │   │   └── resume.py
 │   ├── services/
 │   │   ├── candidate_service.py
+│   │   ├── extraction_service.py
 │   │   ├── llm_service.py
 │   │   └── resume_service.py
 │   ├── ui/
@@ -41,6 +41,7 @@ careerpilot/
 ├── data/
 │   └── resumes/
 ├── tests/
+│   └── test_resume_pipeline.py
 ├── careerpilot.db
 └── .env (optional local config)
 ```
@@ -65,6 +66,7 @@ Contains the business workflow:
 - `candidate_service.py`: candidate creation, retrieval, and listing
 - `resume_service.py`: file save and text extraction logic
 - `llm_service.py`: Ollama prompt generation and response parsing
+- `extraction_service.py`: extraction persistence, review, approval, and candidate profile updates
 
 ### `app/ui/`
 
@@ -80,17 +82,17 @@ Holds the uploaded resume files on disk with unique filenames to avoid collision
 
 ### `tests/`
 
-This folder exists but is not yet populated with a meaningful automated suite.
+Contains focused service integration tests using a temporary SQLite database and mocked Ollama output.
 
 ## Data flow summary
 
 1. UI creates or selects a candidate.
 2. The uploaded file is saved under `data/resumes/`.
 3. Text is extracted and stored with the resume row.
-4. The LLM service returns structured data for display in the upload page.
-5. The upload page does not currently save that data to `extracted_info`.
-6. The review page expects an `ExtractedInfo` row, so the active upload flow does not connect to review/approval.
-7. The dashboard reads candidate, resume, and any existing extracted-info rows.
+4. The LLM service validates structured output and the extraction service saves it as pending review.
+5. The review page persists corrections and approval state.
+6. Approved profile fields are applied only after approval; replacement of populated values requires explicit confirmation.
+7. The dashboard reads candidate, resume, and extracted-info rows.
 
 ## Notable architectural choice
 

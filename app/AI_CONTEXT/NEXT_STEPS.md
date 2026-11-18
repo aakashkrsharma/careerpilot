@@ -1,29 +1,31 @@
 # Next Steps
 
-The initial implementation assessment is complete. Do not expand product scope until the resume-processing pipeline is working, human-reviewed, and tested.
+## Phase 1: resume processing pipeline — complete
 
-## Phase 1: make the pipeline reliable
+Implemented and verified:
 
-1. Reconcile the dependency manifests with the actual Python 3.14 environment and choose supported PDF/DOCX parsers and Ollama client dependencies.
-2. Add focused tests for candidate/resume services, text extraction, LLM response parsing, and persistence. Use a temporary SQLite database and mock Ollama; tests must not require a live model.
-3. Implement a complete extraction persistence path: save proposed fields, source resume, prompt/response, and pending-review status.
-4. Fix review updates to load and persist records in one valid database session; record review/approval state and timestamps.
-5. Apply approved fields to the candidate profile only after explicit approval, preserving existing non-empty values unless the user approves the replacement.
-6. Validate file types and parsing results; stop with a clear error rather than proceeding with empty text or sample extraction data.
-7. Verify upload → extraction → pending review → edits → approval → candidate profile persistence with focused integration tests.
+- focused service tests using temporary SQLite and mocked Ollama
+- PDF/DOCX/TXT extraction with explicit errors for unsupported, unreadable, or empty files
+- strict Pydantic validation of LLM output; failed or malformed responses are not replaced with sample candidate data
+- persistence of successful extraction output, prompt, and raw response as pending review
+- transactional reviewer edits and approval timestamps
+- application of approved profile values, filling empty fields by default and replacing existing values only after a separate explicit choice
+- integration coverage for the full service workflow, candidate scoping, and unique-email rollback
 
-## Phase 2: align configuration and boundaries
+Eight tests pass. A live Ollama/browser workflow and clean-virtualenv install remain unverified.
 
-1. Configure the Ollama client with `OLLAMA_BASE_URL` and `OLLAMA_MODEL`.
-2. Use Pydantic schemas at the extraction boundary to validate the expected output shape, or remove unused schemas if they are not needed.
-3. Keep service/business logic independent of Streamlit and reduce direct database access from UI pages.
-4. Confirm the intended meaning of candidate isolation. The current schema has candidate relationships but no user/account isolation.
+## Phase 2: configuration and isolation — next
 
-## Phase 3: document and stabilize
+1. Configure the Ollama client with both `OLLAMA_BASE_URL` and `OLLAMA_MODEL`; add a mocked test for host configuration.
+2. Resolve the meaning of “candidate data isolation” for this single-user local app. Candidate/resume/extraction operations are candidate-scoped, but there is no account/user isolation.
+3. Keep business logic independent of Streamlit; consider moving upload orchestration into a service only if it reduces UI responsibilities without adding unnecessary abstraction.
 
-1. Run the focused tests and a local Streamlit smoke test.
-2. Update the AI_CONTEXT documents to reflect verified behavior and operational requirements.
-3. Consider broader features (job tracking, exports, search, authentication) only after the pipeline is stable and requirements are explicit.
+## Phase 3: verify and stabilize
+
+1. Run a clean-virtualenv dependency installation using `requirements.txt`.
+2. Run the application with the configured local Ollama model and verify upload → review → approval in the UI.
+3. Update all affected AI_CONTEXT documents from verified behavior before declaring the next phase complete.
+4. Consider broader job-hunting features only after the pipeline and isolation expectations are stable.
 
 ## Out of scope for the immediate phase
 

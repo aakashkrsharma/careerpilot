@@ -1,19 +1,24 @@
 """
 Resume service for CareerPilot - handles resume file operations and text extraction
 """
-import os
 import uuid
 from pathlib import Path
-from typing import Optional, Dict, Any
-from app.database.models import Resume, Candidate
+from typing import Optional
+from zipfile import BadZipFile
+
+from docx.opc.exceptions import PackageNotFoundError
+from PyPDF2.errors import PdfReadError
+
 from app.database.database import get_db
-from sqlalchemy.orm import Session
+from app.database.models import Resume
 
 class ResumeService:
+    supported_extensions = {".pdf", ".docx", ".txt"}
+
     def __init__(self):
         self.data_dir = Path("data")
         self.resumes_dir = self.data_dir / "resumes"
-        self.resumes_dir.mkdir(exist_ok=True)
+        self.resumes_dir.mkdir(parents=True, exist_ok=True)
     
     def save_resume_file(self, file_name: str, file_content: bytes) -> str:
         """
@@ -26,8 +31,14 @@ class ResumeService:
         Returns:
             str: Path to saved file
         """
-        # Generate unique filename to avoid conflicts
-        file_extension = os.path.splitext(file_name)[1]
+        file_extension = Path(file_name).suffix.lower()
+        if file_extension not in self.supported_extensions:
+            raise ValueError(
+                "Unsupported resume file type. Upload a PDF, DOCX, or TXT file."
+            )
+        if not isinstance(file_content, bytes) or not file_content:
+            raise ValueError("The uploaded resume file is empty or invalid.")
+
         unique_filename = f"{uuid.uuid4()}{file_extension}"
         
         file_path = self.resumes_dir / unique_filename
@@ -38,7 +49,7 @@ class ResumeService:
     
     def extract_text_from_file(self, file_path: str) -> str:
         """
-        Extract text from resume file (PDF/DOCX)
+        Extract text from PDF, DOCX, or TXT resume files.
         
         Args:
             file_path (str): Path to the resume file
@@ -46,22 +57,35 @@ class ResumeService:
         Returns:
             str: Extracted text content
         """
-        from pathlib import Path
         file_ext = Path(file_path).suffix.lower()
-        
+        if file_ext not in self.supported_extensions:
+            raise ValueError(
+                "Unsupported resume file type. Upload a PDF, DOCX, or TXT file."
+            )
+
         try:
-            if file_ext == '.pdf':
-                return self._extract_text_from_pdf(file_path)
-            elif file_ext in ['.docx', '.doc']:
-                return self._extract_text_from_docx(file_path)
+            if file_ext == ".pdf":
+                text = self._extract_text_from_pdf(file_path)
+            elif file_ext == ".docx":
+                text = self._extract_text_from_docx(file_path)
             else:
-                # For other formats, try to read as text
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    return f.read()
-        except Exception as e:
-            print(f"Error extracting text from {file_path}: {e}")
-            # Return empty string if extraction fails
-            return ""
+                text = Path(file_path).read_text(encoding="utf-8")
+        except (
+            BadZipFile,
+            KeyError,
+            PackageNotFoundError,
+            PdfReadError,
+            UnicodeDecodeError,
+            OSError,
+            ValueError,
+        ) as exc:
+            raise ValueError(
+                f"Could not extract readable text from the resume: {exc}"
+            ) from exc
+
+        if not text or not text.strip():
+            raise ValueError("No readable text was found in the resume.")
+        return text
     
     def _extract_text_from_pdf(self, file_path: str) -> str:
         """
@@ -73,20 +97,11 @@ class ResumeService:
         Returns:
             str: Extracted text content
         """
-        try:
-            import PyPDF2
-            text = ""
-            with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                for page in pdf_reader.pages:
-                    text += page.extract_text()
-            return text
-        except ImportError:
-            print("PyPDF2 not installed. Please install it to extract PDF text.")
-            return ""
-        except Exception as e:
-            print(f"Error reading PDF: {e}")
-            return ""
+        import PyPDF2
+
+        with open(file_path, "rb") as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            return "\n".join(page.extract_text() or "" for page in pdf_reader.pages)
     
     def _extract_text_from_docx(self, file_path: str) -> str:
         """
@@ -98,21 +113,18 @@ class ResumeService:
         Returns:
             str: Extracted text content
         """
-        try:
-            from docx import Document
-            doc = Document(file_path)
-            full_text = []
-            for para in doc.paragraphs:
-                full_text.append(para.text)
-            return '\n'.join(full_text)
-        except ImportError:
-            print("python-docx not installed. Please install it to extract DOCX text.")
-            return ""
-        except Exception as e:
-            print(f"Error reading DOCX: {e}")
-            return ""
+        from docx import Document
+
+        doc = Document(file_path)
+        return "\n".join(para.text for para in doc.paragraphs)
     
-    def create_resume_record(self, candidate_id: int, file_name: str, file_path: str, extracted_text: str) -> Resume:
+    def create_resume_record(
+        self,
+        candidate_id: int,
+        file_name: str,
+        file_path: str,
+        extracted_text: str,
+    ) -> Resume:
         """
         Create a resume record in the database
         
@@ -132,7 +144,7 @@ class ResumeService:
                 file_name=file_name,
                 file_path=file_path,
                 extracted_text=extracted_text,
-                is_processed=True
+                is_processed=False
             )
             db.add(resume)
             db.commit()

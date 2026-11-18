@@ -2,7 +2,7 @@
 
 ## Overview
 
-CareerPilot defines four SQLAlchemy tables in a local SQLite database: candidates, resumes, extracted information, and extraction history. The `ExtractedInfo` and `ExtractionHistory` tables are defined in the schema, but the current upload workflow does not write to them.
+CareerPilot defines four SQLAlchemy tables in a local SQLite database: candidates, resumes, extracted information, and extraction history. The active upload/review workflow writes to `Resume` and `ExtractedInfo`; `ExtractionHistory` is defined but not currently used.
 
 ## Database location
 
@@ -106,6 +106,7 @@ Tracks extraction attempts and metadata for debugging and auditing.
 - the database is intentionally simple and local-first
 - there are no complex indexes or migration scripts yet
 - the schema is designed for a prototype workflow rather than enterprise-scale data processing
-- `Resume.is_processed` is set to `True` when the resume record is created, before successful LLM extraction is established.
+- `Resume.is_processed` remains `False` until valid extraction data is persisted for review.
+- `ExtractedInfo` rows are initially pending (`is_reviewed=False`, `is_approved=False`) and store the prompt and raw model response.
 - ORM foreign keys do not declare cascade-delete behavior.
 - no schema migration mechanism is present; `create_all()` creates missing tables but does not migrate existing ones.

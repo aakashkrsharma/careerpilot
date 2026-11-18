@@ -1,53 +1,46 @@
 # Development Status
 
-## Assessment scope
+## Current status
 
-Read-only inspection of the application source, dependency manifests, and test directory was completed on 2026-11-18. No application code or tests were changed in this assessment.
+The initial source/dependency audit and Phase 1 of the Resume Processing Pipeline were completed on 2026-11-18. The first end-to-end service workflow is implemented and covered by focused tests.
 
-## Current state
+## Implemented
 
-CareerPilot is an early prototype. The UI and individual components exist, but the resume-processing workflow is not complete end to end.
+- Streamlit entry point and Dashboard, Upload Resume, and Review Information pages.
+- SQLAlchemy models for candidates, resumes, extracted information, and extraction history.
+- Local SQLite storage and candidate/resume management services.
+- Resume upload and text extraction for PDF, DOCX, and TXT. Unsupported, unreadable, or empty resumes fail explicitly.
+- Local Ollama extraction with Pydantic response validation. Connection, malformed-response, and empty-result failures are surfaced; sample candidate data is no longer returned.
+- Pending extraction persistence, including candidate/resume IDs, prompt, and raw response. A resume is marked processed only after extraction persistence succeeds.
+- Transactional review save, review/approval timestamps, and approved candidate-profile updates.
+- Empty candidate profile fields are filled after approval. Replacing populated values requires a separate explicit choice.
+- Focused service integration tests with temporary SQLite and mocked Ollama.
 
-### Implemented
+## Remaining limitations
 
-- Streamlit entry point and three screens: upload, review, and dashboard.
-- SQLAlchemy models for `Candidate`, `Resume`, `ExtractedInfo`, and `ExtractionHistory`.
-- SQLite engine configured as `sqlite:///./careerpilot.db`; `init_db()` creates model tables.
-- Candidate service operations for create, fetch, list, update, and related resume/extraction lookup.
-- Resume service saves files under `data/resumes/`, extracts PDF/DOCX/TXT text when the required parser is installed, and stores the resume record and text in SQLite.
-- LLM service builds an extraction prompt, attempts JSON parsing, and returns a structured result to the upload UI.
-- Pydantic schema files exist under `app/models/`, but active services/UI do not use them.
-- The project virtual environment is Python 3.14.4. This is the observed environment, not a declared compatibility guarantee.
+- `OLLAMA_BASE_URL` is read but not used to configure the Ollama client; `OLLAMA_MODEL` is honored.
+- Legacy `.doc` files are unsupported; upload accepts PDF, DOCX, and TXT.
+- No user/account model or user-level isolation exists. Candidate IDs scope the candidate/resume/extraction workflow only.
+- Upload and LLM processing run synchronously in Streamlit.
+- Existing SQLite databases are not migrated automatically; `create_all()` only creates missing tables.
+- Clean-virtualenv installation and a live Ollama/browser workflow have not been verified.
 
-### Incomplete or broken against the planned pipeline
+## Tests and dependencies
 
-- The upload page displays extraction output but does not create an `ExtractedInfo` row or persist the prompt/response.
-- The review page depends on an `ExtractedInfo` row, so the upload path does not currently feed the review path.
-- The review page updates a detached ORM object and then commits a different session; its edits are therefore not reliably persisted.
-- Approval/review timestamps are not maintained, and approved data is not applied to `Candidate`.
-- The LLM service substitutes sample candidate data when Ollama is missing/unavailable or output is malformed. This can make a failed extraction appear successful.
-- `OLLAMA_BASE_URL` is assigned but is not passed to Ollama; only the model name is used.
-- The UI allows `.doc`, but the parser uses `python-docx` for both `.doc` and `.docx`; legacy `.doc` is not supported by that parser.
-- If PDF/DOCX dependencies are missing, parsing returns an empty string; the upload workflow does not stop before creating/processing the resume.
-- No user/account model or user-level isolation exists. Candidate IDs only associate resumes and extracted information with a candidate.
-
-### Tests and dependencies
-
-- `tests/` contains no test files; no automated tests are currently available.
-- `requirements.txt` does not declare Ollama, PyPDF2, or python-docx, all of which are imported optionally by the active LLM/parser code.
-- `requirements_new.txt` includes `sqlite3` (part of Python’s standard library) and a different parser/dependency set. The two manifests do not define one verified installation path.
-- The inspected `.venv` has Python 3.14.4, Streamlit, SQLAlchemy, and Pydantic, but not Ollama, PyPDF2, python-docx, or pytest.
-- No implementation, test, or clean-install validation was performed as part of this read-only assessment.
+- Eight `unittest` cases cover PDF/DOCX/TXT extraction, invalid input, mocked Ollama success/failure, pending persistence, review/approval, no-overwrite behavior, candidate scoping, and unique-email rollback.
+- `requirements.txt` is the sole pinned runtime manifest. It includes Streamlit, SQLAlchemy, Pydantic, pandas, Ollama, HTTPX, PyPDF2, python-docx, and email-validator.
+- Dependency installation, UI imports, and `pip check` pass in the existing Python 3.14.4 virtual environment.
+- Existing SQLAlchemy and PyPDF2 deprecation warnings remain.
 
 ## Project principles to preserve
 
 - Keep data local and use Ollama rather than paid external model APIs.
 - Keep business logic independent of Streamlit.
 - Preserve original resume files on disk.
-- Require human review/approval before applying extracted fields to an existing candidate profile.
-- Do not overwrite existing candidate values from unapproved model output.
+- Require human approval before applying extracted fields to a candidate profile.
+- Do not overwrite populated profile fields without explicit replacement approval.
 - Keep the implementation incremental and avoid unnecessary abstractions.
 
-## Assessment conclusion
+## Phase 1 conclusion
 
-The project has useful scaffolding, but the first planned feature—resume upload through approved candidate-profile update—is not complete. Implement and test that pipeline before treating review/approval or profile persistence as available functionality.
+The upload → extraction → pending review → correction/approval → candidate profile flow is implemented and service-tested. Complete the remaining configuration/isolation decisions and a live local smoke test before broadening product scope.

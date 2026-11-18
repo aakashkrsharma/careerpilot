@@ -32,11 +32,11 @@ python -m venv .venv
 
 ## 3. Install dependencies
 
-The dependency manifests are currently inconsistent: `requirements.txt` does not include the Ollama client, PyPDF2, or python-docx used by the active code paths, and `requirements_new.txt` includes `sqlite3`, which is part of Python's standard library. A clean installation is not yet verified; reconcile the manifests before relying on either as a reproducible setup.
-
 ```bash
 pip install -r requirements.txt
 ```
+
+The runtime packages are pinned in the single canonical manifest. The dependency installation was verified in the existing Python 3.14.4 environment; a clean-virtualenv installation has not yet been tested.
 
 ## 4. Install and start Ollama
 
@@ -57,7 +57,7 @@ export OLLAMA_BASE_URL=http://localhost:11434
 export OLLAMA_MODEL=llama3
 ```
 
-These values default to the local Ollama endpoint and `llama3` if not set.
+`OLLAMA_MODEL` defaults to `llama3`. `OLLAMA_BASE_URL` currently has no effect; the client uses its own default local endpoint until Phase 2 configuration work is completed.
 
 ## 6. Run the app
 
@@ -82,12 +82,12 @@ On first launch, the app initializes the SQLite database and creates the require
 ### Ollama is not responding
 
 - confirm Ollama is installed and running
-- check the endpoint in `OLLAMA_BASE_URL`
+- check that Ollama is running at its default local endpoint (`http://localhost:11434`)
 - verify that the model exists with `ollama list`
 
 ### Resume parsing fails
 
-- confirm that the file is a PDF, DOCX/DOC, or TXT file
+- confirm that the file is a PDF, DOCX, or TXT file
 - inspect the console output for formatting or parser exceptions
 - some PDFs may produce noisy extraction without a full OCR pipeline
 
@@ -99,4 +99,4 @@ On first launch, the app initializes the SQLite database and creates the require
 
 ## Current installation assumption
 
-The assessed local virtual environment uses Python 3.14.4, but the project does not declare a supported Python version. This app is designed for a local developer workflow and is not packaged for production deployment or multi-user hosting.
+The project handoff targets Python 3.14 and the assessed local virtual environment uses Python 3.14.4, but the project does not formally declare a supported Python range. This app is designed for a local developer workflow and is not packaged for production deployment or multi-user hosting.

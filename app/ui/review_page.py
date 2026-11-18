@@ -3,9 +3,9 @@ Review page for CareerPilot - allows users to review and approve LLM-extracted i
 """
 import streamlit as st
 from app.services.candidate_service import candidate_service
+from app.services.extraction_service import extraction_service
 from app.services.resume_service import resume_service
-from app.database.models import Candidate, Resume, ExtractedInfo
-from app.database.database import get_db
+from sqlalchemy.exc import SQLAlchemyError
 
 def show_review_page():
     """Display the review page for extracted information"""
@@ -46,13 +46,10 @@ def show_review_page():
     resume_id = resume_options[selected_resume]
     
     # Get extracted information for this resume
-    db = next(get_db())
-    try:
-        extracted_info = db.query(ExtractedInfo).filter(
-            ExtractedInfo.resume_id == resume_id
-        ).first()
-    finally:
-        db.close()
+    extracted_info = extraction_service.get_extraction_for_resume(
+        candidate_id,
+        resume_id,
+    )
     
     if not extracted_info:
         st.warning("No extracted information found for this resume.")
@@ -62,93 +59,71 @@ def show_review_page():
     st.subheader("Extracted Information")
     
     # Create editable fields for each extracted field
-    with st.form("review_form"):
+    with st.form(f"review_form_{extracted_info['id']}"):
         updated_info = {}
         
-        # Display and allow editing of each field
-        updated_info["full_name"] = st.text_input(
-            "Full Name", 
-            value=extracted_info.full_name or ""
-        )
-        updated_info["email"] = st.text_input(
-            "Email", 
-            value=extracted_info.email or ""
-        )
-        updated_info["phone"] = st.text_input(
-            "Phone", 
-            value=extracted_info.phone or ""
-        )
-        updated_info["location"] = st.text_input(
-            "Location", 
-            value=extracted_info.location or ""
-        )
-        updated_info["linkedin"] = st.text_input(
-            "LinkedIn", 
-            value=extracted_info.linkedin or ""
-        )
-        updated_info["github"] = st.text_input(
-            "GitHub", 
-            value=extracted_info.github or ""
-        )
-        
-        # Summary
+        text_fields = {
+            "full_name": "Full Name",
+            "email": "Email",
+            "phone": "Phone",
+            "location": "Location",
+            "linkedin": "LinkedIn",
+            "github": "GitHub",
+        }
+        for field, label in text_fields.items():
+            updated_info[field] = st.text_input(
+                label,
+                value=extracted_info[field] or "",
+                key=f"review_{extracted_info['id']}_{field}",
+            )
+
         updated_info["summary"] = st.text_area(
-            "Summary", 
-            value=extracted_info.summary or "",
-            height=150
+            "Summary",
+            value=extracted_info["summary"] or "",
+            height=150,
+            key=f"review_{extracted_info['id']}_summary",
         )
-        
-        # Experience
         updated_info["experience"] = st.text_area(
-            "Experience", 
-            value=extracted_info.experience or "",
-            height=200
+            "Experience",
+            value=extracted_info["experience"] or "",
+            height=200,
+            key=f"review_{extracted_info['id']}_experience",
         )
-        
-        # Skills
         updated_info["skills"] = st.text_area(
-            "Skills", 
-            value=extracted_info.skills or "",
-            height=150
+            "Skills",
+            value=extracted_info["skills"] or "",
+            height=150,
+            key=f"review_{extracted_info['id']}_skills",
         )
-        
-        # Education
         updated_info["education"] = st.text_area(
-            "Education", 
-            value=extracted_info.education or "",
-            height=200
+            "Education",
+            value=extracted_info["education"] or "",
+            height=200,
+            key=f"review_{extracted_info['id']}_education",
         )
-        
-        # Approval status
+
         is_approved = st.checkbox(
             "Approve this information",
-            value=extracted_info.is_approved
+            value=extracted_info["is_approved"],
+            key=f"review_{extracted_info['id']}_approved",
         )
-        
-        # Submit button
+        replace_existing = st.checkbox(
+            "Replace existing candidate profile values with approved values",
+            value=False,
+            key=f"review_{extracted_info['id']}_replace",
+        )
+
         if st.form_submit_button("Update and Save"):
             try:
-                # Update the extracted info in database
-                db = next(get_db())
-                try:
-                    # Update the extracted info record
-                    for key, value in updated_info.items():
-                        setattr(extracted_info, key, value)
-                    
-                    extracted_info.is_approved = is_approved
-                    
-                    db.commit()
-                    db.refresh(extracted_info)
-                    
-                    st.success("Extracted information updated successfully!")
-                    
-                except Exception as e:
-                    db.rollback()
-                    st.error(f"Error updating information: {str(e)}")
-                finally:
-                    db.close()
-                    
-            except Exception as e:
+                extraction_service.save_review(
+                    extraction_id=extracted_info["id"],
+                    candidate_id=candidate_id,
+                    updated_fields=updated_info,
+                    is_approved=is_approved,
+                    replace_existing=replace_existing,
+                )
+                st.success("Reviewed information saved.")
+            except (ValueError, SQLAlchemyError) as e:
                 st.error(f"Error saving information: {str(e)}")
 
 # Initialize the page when imported

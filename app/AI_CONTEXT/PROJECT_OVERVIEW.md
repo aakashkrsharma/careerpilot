@@ -16,24 +16,23 @@ Candidate information must not be overwritten by unreviewed extraction results. 
 
 ## Current implementation
 
-The codebase is an early prototype, not yet an end-to-end implementation of the planned pipeline:
+The first resume-processing pipeline is implemented as an early local prototype:
 
 - Streamlit provides Dashboard, Upload Resume, and Review Information pages.
 - SQLAlchemy models define candidates, resumes, extracted information, and extraction history.
 - SQLite is hard-coded as `sqlite:///./careerpilot.db`.
-- Resume files are written under `data/resumes/`; extracted text is stored in the `resumes` table.
-- The upload page calls the LLM service and displays returned fields, but does not persist them as `ExtractedInfo`.
-- The review page reads `ExtractedInfo`, so a new upload cannot reach a working review flow through the current UI.
-- Candidate profile fields are not updated from reviewed/approved extraction data.
+- PDF, DOCX, and TXT files are saved under `data/resumes/`; extracted text is stored in the `resumes` table.
+- Successful, Pydantic-validated model output is stored as pending `ExtractedInfo`, with the prompt and raw response.
+- Review corrections, review status, and approval timestamps are persisted transactionally.
+- Approved profile fields fill empty candidate values; replacing populated values requires explicit reviewer confirmation.
 
 ## Important constraints
 
-- Ollama is intended for local inference, but current LLM failures are converted to fabricated sample data; `OLLAMA_BASE_URL` is read but not used to configure the Ollama client.
+- Ollama is used for local inference; failures and malformed/empty responses are surfaced instead of replaced with sample candidate data. `OLLAMA_BASE_URL` is read but not yet used to configure the client.
 - The app has no user/authentication model. Candidate-to-resume relationships are implemented, but this is not multi-user or per-user data isolation.
-- Pydantic schemas exist under `app/models/` but are not used in the active UI/service workflow.
-- The upload widget accepts `.doc`, but the parser uses `python-docx`, which handles DOCX rather than legacy binary DOC files.
-- The test directory is empty. The dependency manifests are inconsistent and do not provide a verified clean installation for the active parser/LLM imports.
+- Legacy `.doc` is not supported; upload accepts PDF, DOCX, and TXT.
+- Focused pipeline tests exist. Runtime dependencies are consolidated in `requirements.txt` and verified in the existing Python 3.14.4 environment; a clean-virtualenv install has not yet been verified.
 
 ## Maturity
 
-Treat the project as an implementation skeleton/prototype. The immediate goal is to establish a tested, trustworthy resume-processing and human-approval pipeline before adding broader job-hunting features or production deployment concerns.
+Treat the project as an early prototype. The next goal is to complete the remaining configuration/isolation decisions and validate the flow against a live local Ollama instance before adding broader job-hunting features or production deployment concerns.
