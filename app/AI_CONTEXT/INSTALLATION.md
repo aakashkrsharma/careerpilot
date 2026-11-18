@@ -50,14 +50,14 @@ ollama pull llama3
 
 ## 5. Configure environment variables
 
-The app reads optional environment variables for LLM configuration:
+Set optional environment variables before starting the app to choose the Ollama endpoint and model:
 
 ```bash
 export OLLAMA_BASE_URL=http://localhost:11434
 export OLLAMA_MODEL=llama3
 ```
 
-`OLLAMA_MODEL` defaults to `llama3`. `OLLAMA_BASE_URL` currently has no effect; the client uses its own default local endpoint until Phase 2 configuration work is completed.
+`OLLAMA_MODEL` defaults to `llama3`. Set it to the exact model tag shown by `ollama list` if you use another installed model. `OLLAMA_BASE_URL` defaults to `http://localhost:11434` and configures the Ollama client.
 
 ## 6. Run the app
 

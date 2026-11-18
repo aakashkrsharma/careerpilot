@@ -12,18 +12,20 @@ Implemented and verified:
 - application of approved profile values, filling empty fields by default and replacing existing values only after a separate explicit choice
 - integration coverage for the full service workflow, candidate scoping, and unique-email rollback
 
-Eight tests pass. A live Ollama/browser workflow and clean-virtualenv install remain unverified.
+Ten tests pass. A complete live Ollama/review/approval workflow and clean-virtualenv install remain unverified.
 
-## Phase 2: configuration and isolation — next
+## Phase 2: configuration and isolation — complete
 
-1. Configure the Ollama client with both `OLLAMA_BASE_URL` and `OLLAMA_MODEL`; add a mocked test for host configuration.
-2. Resolve the meaning of “candidate data isolation” for this single-user local app. Candidate/resume/extraction operations are candidate-scoped, but there is no account/user isolation.
-3. Keep business logic independent of Streamlit; consider moving upload orchestration into a service only if it reduces UI responsibilities without adding unnecessary abstraction.
+Implemented and decided:
 
-## Phase 3: verify and stabilize
+- The Ollama client uses `OLLAMA_BASE_URL` and `OLLAMA_MODEL`; tests verify both the configured host and selected model.
+- The current prototype is explicitly single-user. Candidate IDs scope candidate/resume/extraction operations; account-level isolation and authentication are out of scope until multi-user support is requested.
+- Upload-page orchestration remains in the UI because it coordinates existing services without duplicating core business rules; no additional abstraction is needed now.
+
+## Phase 3: verify and stabilize — next
 
 1. Run a clean-virtualenv dependency installation using `requirements.txt`.
-2. Run the application with the configured local Ollama model and verify upload → review → approval in the UI.
+2. Run the application with the configured local Ollama model and verify upload → review → approval and dashboard display in the UI.
 3. Update all affected AI_CONTEXT documents from verified behavior before declaring the next phase complete.
 4. Consider broader job-hunting features only after the pipeline and isolation expectations are stable.
 

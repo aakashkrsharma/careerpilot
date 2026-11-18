@@ -28,11 +28,11 @@ The first resume-processing pipeline is implemented as an early local prototype:
 
 ## Important constraints
 
-- Ollama is used for local inference; failures and malformed/empty responses are surfaced instead of replaced with sample candidate data. `OLLAMA_BASE_URL` is read but not yet used to configure the client.
-- The app has no user/authentication model. Candidate-to-resume relationships are implemented, but this is not multi-user or per-user data isolation.
+- Ollama is used for local inference; failures and malformed/empty responses are surfaced instead of replaced with sample candidate data. `OLLAMA_BASE_URL` and `OLLAMA_MODEL` configure the Ollama client.
+- The app is intentionally single-user for the current prototype. Resume and extraction operations are scoped by candidate ID; there is no account-level authentication or multi-user isolation.
 - Legacy `.doc` is not supported; upload accepts PDF, DOCX, and TXT.
 - Focused pipeline tests exist. Runtime dependencies are consolidated in `requirements.txt` and verified in the existing Python 3.14.4 environment; a clean-virtualenv install has not yet been verified.
 
 ## Maturity
 
-Treat the project as an early prototype. The next goal is to complete the remaining configuration/isolation decisions and validate the flow against a live local Ollama instance before adding broader job-hunting features or production deployment concerns.
+Treat the project as an early prototype. The next goal is to validate the configured flow against a live local Ollama instance before adding broader job-hunting features or production deployment concerns.

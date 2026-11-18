@@ -18,15 +18,16 @@ This document distinguishes the project handoff's intended principles from choic
 - `app/database/database.py` configures a fixed SQLite URL: `sqlite:///./careerpilot.db`.
 - `app/database/models.py` defines Candidate, Resume, ExtractedInfo, and ExtractionHistory tables.
 - `app/services/resume_service.py` stores uploaded files in `data/resumes/` and keeps extracted text in SQLite.
+- `app/services/llm_service.py` configures an Ollama client from `OLLAMA_BASE_URL` and selects the model with `OLLAMA_MODEL`.
 - `app/services/llm_service.py` calls local Ollama and validates its JSON response with the Pydantic extraction schema. Failed or malformed responses are surfaced, not replaced with sample candidate data.
 - `app/services/extraction_service.py` stores pending extraction, review state, and approved candidate profile updates transactionally.
+- The app is single-user for the current prototype. Candidate IDs scope resume and extraction operations; account-level isolation and authentication are out of scope until multi-user support is requested.
+- Upload UI orchestration remains in the page because it coordinates existing services without duplicating core business rules; a separate pipeline abstraction is not currently justified.
 - Existing candidate profile values are preserved by default; replacing populated values requires explicit confirmation.
 - `requirements.txt` is the canonical pinned runtime dependency list and was verified in the existing Python 3.14.4 environment.
 
-## Gaps, not settled decisions
+## Remaining gaps
 
-- `OLLAMA_BASE_URL` is read but not used to configure the Ollama client.
-- There is no account/user table or user-level isolation; candidate relationships alone do not provide multi-user isolation.
 - There is no migration strategy, and clean-environment installation remains unverified.
 
 Do not treat unimplemented behavior or earlier aspirational documentation as a completed technical decision.

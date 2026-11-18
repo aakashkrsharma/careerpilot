@@ -16,7 +16,7 @@ The app has Dashboard, Upload Resume, and Review Information pages.
 2. Upload a PDF, DOCX, or TXT resume.
 3. Process the resume. The original file is saved under `data/resumes/`; extracted text and resume metadata are stored in SQLite.
 4. CareerPilot sends the text to local Ollama. A valid structured response is saved as pending `ExtractedInfo`, together with the prompt and raw model response.
-5. Open Review Information, select the candidate and resume, correct the fields, and save.
+5. After processing, open Review Information from the sidebar, select the candidate and resume, correct the fields, and save. Approval is on this page, not the upload results page.
 6. To apply the reviewed data to the candidate profile, check “Approve this information” before saving.
 
 Approved values fill empty candidate profile fields by default. To replace existing values, also check “Replace existing candidate profile values with approved values.” Experience, skills, and education remain in the extraction record; the candidate profile currently has no corresponding columns for them.
@@ -36,7 +36,7 @@ Approved values fill empty candidate profile fields by default. To replace exist
 
 ## Current limitations
 
-- The model defaults to `llama3`, configurable with `OLLAMA_MODEL`.
-- The app reads `OLLAMA_BASE_URL` but does not yet configure the Ollama client with it.
+- The model defaults to `llama3`; use `OLLAMA_MODEL` to select another installed model.
+- `OLLAMA_BASE_URL` configures the Ollama client and defaults to `http://localhost:11434`.
 - The app is local and single-user; candidate relationships do not provide account-level isolation.
 - No REST API or export feature is implemented.

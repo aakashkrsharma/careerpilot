@@ -14,6 +14,7 @@ class LLMService:
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         self.model_name = os.getenv("OLLAMA_MODEL", "llama3")
+        self.client = ollama.Client(host=self.base_url)
 
     def extract_information_from_resume(
         self,
@@ -58,7 +59,7 @@ Resume text:
 
     def _get_llm_response(self, prompt: str) -> str:
         try:
-            response = ollama.generate(
+            response = self.client.generate(
                 model=self.model_name,
                 prompt=prompt,
                 stream=False,

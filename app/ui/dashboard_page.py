@@ -22,7 +22,7 @@ def show_dashboard_page():
     
     candidate_data = []
     for candidate in candidates:
-        resumes = resume_service.get_candidate_resumes(candidate.id)
+        resumes = candidate_service.get_candidate_resumes(candidate.id)
         extracted_infos = candidate_service.get_candidate_extracted_info(candidate.id)
         
         candidate_data.append({
@@ -54,7 +54,7 @@ def show_dashboard_page():
         
         # Get detailed information
         candidate = candidate_service.get_candidate_by_id(candidate_id)
-        resumes = resume_service.get_candidate_resumes(candidate_id)
+        resumes = candidate_service.get_candidate_resumes(candidate_id)
         extracted_infos = candidate_service.get_candidate_extracted_info(candidate_id)
         
         # Display candidate info

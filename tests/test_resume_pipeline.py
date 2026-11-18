@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import DEFAULT, patch
 
 from docx import Document
 import httpx
@@ -183,11 +183,32 @@ class ResumePipelineTests(unittest.TestCase):
             self.llm_service.extract_information_from_resume("  ", 1, 1)
 
         with patch(
-            "app.services.llm_service.ollama.generate",
+            "app.services.llm_service.ollama.Client.generate",
             side_effect=httpx.ConnectError("Ollama is offline"),
         ):
             with self.assertRaisesRegex(ValueError, "Local Ollama extraction failed"):
                 self.llm_service.extract_information_from_resume("Resume text", 1, 1)
+
+    def test_llm_client_uses_configured_host_and_model(self):
+        base_url = "http://ollama.example:11434"
+        model_name = "qwen3-coder:30b"
+        with patch.dict(
+            os.environ,
+            {"OLLAMA_BASE_URL": base_url, "OLLAMA_MODEL": model_name},
+        ):
+            with patch("app.services.llm_service.ollama.Client") as client_factory:
+                service = self.llm_service.__class__()
+                client = client_factory.return_value
+                client.generate.return_value.response = "model output"
+
+                self.assertEqual(service._get_llm_response("resume prompt"), "model output")
+
+        client_factory.assert_called_once_with(host=base_url)
+        client.generate.assert_called_once_with(
+            model=model_name,
+            prompt="resume prompt",
+            stream=False,
+        )
 
     def test_pipeline_persists_pending_extraction_then_approved_profile(self):
         candidate, resume = self.create_candidate_and_resume()
@@ -327,6 +348,33 @@ class ResumePipelineTests(unittest.TestCase):
         with self.session_factory() as db:
             self.assertEqual(db.query(ExtractedInfo).count(), 0)
             self.assertFalse(db.get(Resume, resume.id).is_processed)
+
+    def test_dashboard_displays_candidate_resumes(self):
+        candidate, _ = self.create_candidate_and_resume()
+
+        from app.ui import dashboard_page
+
+        with patch.multiple(
+            "app.ui.dashboard_page.st",
+            header=DEFAULT,
+            subheader=DEFAULT,
+            dataframe=DEFAULT,
+            selectbox=DEFAULT,
+            markdown=DEFAULT,
+            write=DEFAULT,
+            info=DEFAULT,
+        ) as widgets:
+            widgets["selectbox"].return_value = (
+                f"{candidate.full_name} ({candidate.email})"
+            )
+            with patch.object(
+                dashboard_page.candidate_service,
+                "get_candidate_resumes",
+                wraps=dashboard_page.candidate_service.get_candidate_resumes,
+            ) as get_candidate_resumes:
+                dashboard_page.show_dashboard_page()
+
+        self.assertEqual(get_candidate_resumes.call_count, 2)
 
 
 if __name__ == "__main__":

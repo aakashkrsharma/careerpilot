@@ -82,7 +82,8 @@ Responsibilities:
 Responsibilities:
 
 - build a structured extraction prompt
-- call the local Ollama server using `ollama.generate(...)`
+- call the configured Ollama server using an `ollama.Client`
+- select the Ollama host and model from `OLLAMA_BASE_URL` and `OLLAMA_MODEL`
 - validate JSON output against the Pydantic extraction schema
 - surface Ollama and response-validation failures without fabricating candidate data
 
@@ -131,15 +132,14 @@ Location: `app/ui/`
 ## Runtime assumptions
 
 - the app is designed to run locally on one machine
-- the Ollama server is expected to be running at `http://localhost:11434`
-- environment variables are optional but supported via `OLLAMA_BASE_URL` and `OLLAMA_MODEL`
+- the Ollama server defaults to `http://localhost:11434`; `OLLAMA_BASE_URL` can override it
+- `OLLAMA_MODEL` selects the local model and defaults to `llama3`
 - no asynchronous queue or worker processes are used at this time
 
 ## Operational constraints
 
-This architecture is intentionally lightweight and therefore has tradeoffs:
+This architecture is intentionally lightweight and assumes a single local user. Candidate IDs scope candidate/resume/extraction operations, but there is no account-level isolation. Other tradeoffs include:
 
-- no multi-user session handling
 - no service isolation or horizontal scaling
 - no background retries or rate limiting
 - no formal API boundary between the UI and backend

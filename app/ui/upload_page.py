@@ -97,7 +97,10 @@ def show_upload_page():
                     )
                     extraction_service.save_pending_extraction(extraction_result)
                     
-                    st.success("Resume processed. Review the extracted information before approval.")
+                    st.success(
+                        "Resume processed. Open Review Information from the sidebar "
+                        "to review, correct, and approve the extracted information."
+                    )
                     st.json(extraction_result["extracted_data"])
                 except (ValueError, OSError, SQLAlchemyError) as e:
                     st.error(f"Error processing resume: {str(e)}")

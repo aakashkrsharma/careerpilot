@@ -9,7 +9,7 @@ The project handoff targets Python 3.14, Streamlit, SQLite, SQLAlchemy, Pydantic
 - VS Code is the development IDE.
 - Claude Code is preferred for more demanding development tasks.
 - Local Qwen3 30B via Ollama, with a 16K context window, is intended for smaller coding, review, and documentation tasks.
-- These are development-assistant preferences; the app's own `OLLAMA_MODEL` currently defaults to `llama3`.
+- These are development-assistant preferences; the app's own `OLLAMA_MODEL` defaults to `llama3` and can be overridden.
 
 ## Current implementation
 
@@ -37,7 +37,7 @@ The project currently assumes a local, single-user setup rather than a hosted ba
 
 ## Notes
 
-- the default LLM model is configured with `OLLAMA_MODEL`, which defaults to `llama3`
-- `OLLAMA_BASE_URL` defaults to `http://localhost:11434`, but the current Ollama call does not use it to configure the client
+- the LLM model is configured with `OLLAMA_MODEL`, which defaults to `llama3`
+- `OLLAMA_BASE_URL` configures the Ollama client and defaults to `http://localhost:11434`
 - the project does not currently implement a separate frontend framework or remote API layer
 - `requirements.txt` is the canonical pinned runtime dependency list; tests use Python's built-in `unittest`, so no separate test dependency is required
