@@ -42,10 +42,21 @@ Implemented and verified:
 - additive SQLite startup migration for existing databases
 - profile update validation and migration tests
 
-## Phase 5: job discovery and storage — next
+## Phase 5: job discovery and storage — complete
 
-1. Define and migrate a normalized `Job` model with source, URL, title, company, location, description, remote/work mode, posted date, and extraction status.
-2. Support manual job-description/URL entry first, keeping the local-first architecture and no paid APIs.
-3. Add source integration only for sources that provide permitted access; one source may be implemented first.
-4. Add filtering by skills, location, experience level, work mode, and preferences.
-5. Deduplicate jobs by stable source/URL key and add tests for filtering and duplicate prevention.
+Implemented and verified:
+
+- normalized `Job` model and local SQLite storage
+- manual job entry and pasted descriptions/source URLs
+- URL normalization and tracking-parameter removal
+- duplicate prevention by normalized URL or manual title/company/location hash
+- filters for title/company, location, work mode, skills, and experience
+
+## Phase 6: explainable job matching — next
+
+1. Define a compatibility result tied to a candidate and job.
+2. Extract or compare candidate skills and job required skills.
+3. Calculate a transparent weighted score based on skills, experience, location/work mode, and preferences.
+4. List matched skills and missing requirements.
+5. Require human review before any consequential application or resume action.
+6. Add focused tests for scoring and explanation boundaries.

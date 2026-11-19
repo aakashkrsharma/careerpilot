@@ -26,6 +26,7 @@ The first resume-processing pipeline is implemented as an early local prototype:
 - Review corrections, review status, and approval timestamps are persisted transactionally.
 - Approved profile fields fill empty candidate values; replacing populated values requires explicit reviewer confirmation.
 - Candidate profiles include structured experience, skills, education, experience level, and job-search preferences. A dedicated profile page allows direct edits.
+- Jobs can be entered manually or pasted with source metadata, and are stored locally with URL normalization and duplicate prevention.
 
 ## Important constraints
 

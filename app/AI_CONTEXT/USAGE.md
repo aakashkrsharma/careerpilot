@@ -8,7 +8,16 @@ Start the app from the project root (the directory containing `app/` and `requir
 python -m streamlit run app/main.py
 ```
 
-The app has Dashboard, Candidate Profile, Upload Resume, and Review Information pages.
+The app has Dashboard, Candidate Profile, Jobs, Upload Resume, and Review Information pages.
+
+## Jobs
+
+1. Open Jobs from the sidebar.
+2. Expand Add a Job and enter a title, company, source, optional URL, location, work mode, description, skills, experience, and salary range.
+3. Save the job. Duplicate URLs and duplicate manual title/company/location combinations are rejected.
+4. Use the filters to narrow local jobs by title/company, location, work mode, skills, and candidate experience.
+
+CareerPilot does not scrape or submit applications. Source URLs are manually supplied and only open when you choose.
 
 ## Candidate profile
 

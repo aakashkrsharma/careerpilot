@@ -18,14 +18,17 @@ careerpilot/
 │   ├── models/
 │   │   ├── candidate.py
 │   │   ├── extracted_info.py
+│   │   ├── job.py
 │   │   └── resume.py
 │   ├── services/
 │   │   ├── candidate_service.py
 │   │   ├── extraction_service.py
 │   │   ├── llm_service.py
+│   │   ├── job_service.py
 │   │   └── resume_service.py
 │   ├── ui/
 │   │   ├── dashboard_page.py
+│   │   ├── jobs_page.py
 │   │   ├── profile_page.py
 │   │   ├── review_page.py
 │   │   └── upload_page.py

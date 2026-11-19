@@ -21,6 +21,7 @@ CareerPilot uses a simple layered architecture centered on a Streamlit frontend 
 │ - ResumeService              │
 │ - LLMService                 │
 │ - ExtractionService          │
+│ - JobService                 │
 └──────────────┬───────────────┘
                │ reads/writes
                ▼
@@ -95,6 +96,13 @@ Responsibilities:
 - save reviewer corrections and approval state transactionally
 - update candidate profile fields only after approval, preserving populated values unless replacement is explicitly selected
 
+### `JobService`
+
+- normalize and validate source URLs
+- create local job records and stable source keys
+- prevent duplicate jobs
+- filter jobs by title/company, location, work mode, skills, and experience
+
 ## UI layer
 
 Location: `app/ui/`
@@ -127,6 +135,12 @@ Location: `app/ui/`
 - edits contact, summary, experience, skills, education, and experience level
 - edits preferred roles, locations, work modes, and minimum salary
 - saves validated profile and preference changes through `CandidateService`
+
+### `jobs_page.py`
+
+- manually adds a job or pastes source metadata and a description
+- displays and filters locally stored jobs
+- links to a source URL when provided
 
 ## Current data flow
 

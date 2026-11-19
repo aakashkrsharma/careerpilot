@@ -24,6 +24,8 @@ This document distinguishes the project handoff's intended principles from choic
 - The app is single-user for the current prototype. Candidate IDs scope resume and extraction operations; account-level isolation and authentication are out of scope until multi-user support is requested.
 - Upload UI orchestration remains in the page because it coordinates existing services without duplicating core business rules; a separate pipeline abstraction is not currently justified.
 - Candidate experience, skills, education, and job preferences are stored as candidate profile columns. Text fields are used for roles, locations, skills, and work modes instead of normalized related tables for this MVP foundation.
+- Job discovery starts with manual or pasted local records. CareerPilot does not scrape job sites or submit applications, avoiding uncertain source terms and preserving local-first behavior.
+- Job duplicates use normalized source URLs or a stable hash of title, company, and location for manual entries without URLs.
 - Existing SQLite databases receive missing candidate profile columns during startup. The migration is intentionally small and local; a versioned migration framework is not added until the schema grows.
 - Existing candidate profile values are preserved by default; replacing populated values requires explicit confirmation.
 - `requirements.txt` is the canonical pinned runtime dependency list and was verified in the existing Python 3.14.4 environment.

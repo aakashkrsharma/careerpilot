@@ -20,6 +20,7 @@ The initial source/dependency audit and Phase 1 of the Resume Processing Pipelin
 - Candidate profiles now store experience, skills, education, years of experience, preferred roles, preferred locations, work modes, and minimum salary.
 - A dedicated Candidate Profile page allows direct profile and job-preference edits.
 - SQLite startup adds the Phase 4 candidate columns to databases created by earlier versions.
+- Local job records support manual entry or pasted source metadata, normalized URLs, source-key deduplication, candidate/profile preference filters, and job detail display.
 
 ## Remaining limitations
 
@@ -30,7 +31,7 @@ The initial source/dependency audit and Phase 1 of the Resume Processing Pipelin
 
 ## Tests and dependencies
 
-- Twelve `unittest` cases cover PDF/DOCX/TXT extraction, invalid input, mocked Ollama success/failure and configuration, pending persistence, review/approval, no-overwrite behavior, candidate scoping, unique-email rollback, dashboard resume display, profile/preferences updates, and SQLite migration.
+- Seventeen `unittest` cases cover the resume pipeline, profile/preferences, SQLite migration, and local job storage/deduplication/filtering.
 - `requirements.txt` is the sole pinned runtime manifest. It includes Streamlit, SQLAlchemy, Pydantic, pandas, Ollama, HTTPX, PyPDF2, python-docx, and email-validator.
 - Existing-environment checks and a clean Python 3.14.4 virtualenv install from `requirements.txt` pass; `pip check` and imports pass in both.
 - A live browser run using local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume verified upload, extraction, review approval, and approved data on the Dashboard in an isolated temporary database.
@@ -60,3 +61,7 @@ The pinned dependencies install in a clean Python 3.14.4 virtual environment. Th
 ## Phase 4 conclusion
 
 Candidate profiles now include structured experience, skills, education, years of experience, preferred roles, preferred locations, work modes, and minimum salary. A dedicated Candidate Profile page supports direct editing, and approved extraction data fills those profile fields. SQLite startup safely adds missing Phase 4 columns to existing databases. Profile update validation and migration behavior are covered by tests.
+
+## Phase 5 conclusion
+
+The app now provides local job storage and filtering. Users can manually add jobs or paste source metadata and descriptions. Source URLs are normalized, tracking parameters are removed, duplicate URLs or manual title/company/location combinations are rejected, and stored jobs can be filtered by title/company, location, work mode, skills, and experience. No external job source is scraped automatically.

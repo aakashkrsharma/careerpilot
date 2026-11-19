@@ -2,7 +2,7 @@
 Database models for CareerPilot - Local-first AI Job Hunting Agent
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -126,6 +126,31 @@ class ExtractionHistory(Base):
     resume = relationship("Resume")
     
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Job(Base):
+    """Locally stored job opportunity and source metadata."""
+    __tablename__ = "jobs"
+    __table_args__ = (
+        UniqueConstraint("source", "source_job_key", name="uq_job_source_key"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String, nullable=False, default="manual", index=True)
+    source_url = Column(String)
+    source_job_key = Column(String, nullable=False, unique=True, index=True)
+    title = Column(String, nullable=False, index=True)
+    company = Column(String, nullable=False, index=True)
+    location = Column(String)
+    work_mode = Column(String)
+    description = Column(Text)
+    required_skills = Column(Text)
+    minimum_experience = Column(Integer)
+    salary_min = Column(Integer)
+    salary_max = Column(Integer)
+    posted_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 # Create all tables when this module is imported
 def init_db():

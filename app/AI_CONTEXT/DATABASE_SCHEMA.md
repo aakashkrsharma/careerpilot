@@ -2,7 +2,7 @@
 
 ## Overview
 
-CareerPilot defines four SQLAlchemy tables in a local SQLite database: candidates, resumes, extracted information, and extraction history. The active upload/review workflow writes to `Resume` and `ExtractedInfo`; `ExtractionHistory` is defined but not currently used.
+CareerPilot defines five SQLAlchemy tables in a local SQLite database: candidates, resumes, extracted information, extraction history, and jobs.
 
 ## Database location
 
@@ -102,12 +102,36 @@ Tracks extraction attempts and metadata for debugging and auditing.
 | `completed_at` | DateTime | optional |
 | `created_at` | DateTime | default UTC now |
 
+### 5. `jobs`
+
+Stores locally entered or imported job opportunities.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer (PK) | primary key |
+| `source` | String | source label; defaults to `manual` |
+| `source_url` | String | optional normalized source URL |
+| `source_job_key` | String | unique normalized URL or stable manual-job hash |
+| `title` | String | required job title |
+| `company` | String | required company name |
+| `location` | String | optional location |
+| `work_mode` | String | Remote, Hybrid, or On-site |
+| `description` | Text | optional pasted job description |
+| `required_skills` | Text | comma-separated required skills |
+| `minimum_experience` | Integer | optional minimum years |
+| `salary_min` | Integer | optional minimum salary |
+| `salary_max` | Integer | optional maximum salary |
+| `posted_at` | DateTime | optional source posting date |
+| `created_at` | DateTime | default UTC now |
+| `updated_at` | DateTime | auto-updated |
+
 ## Relationships
 
 - `Candidate` has many `Resume` rows
 - `Candidate` has many `ExtractedInfo` rows
 - each `Resume` can have one or more corresponding `ExtractedInfo` records
 - `ExtractionHistory` links attempts back to a candidate and resume
+- `Job` records are local opportunities and are not currently linked to a candidate
 
 ## Notes
 
