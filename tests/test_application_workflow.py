@@ -538,6 +538,11 @@ class ApplicationWorkflowTests(unittest.TestCase):
                 "app.services.candidate_service.candidate_service.get_all_candidates",
                 return_value=[],
             ),
+            patch(
+                "app.services.job_source_registry_service."
+                "job_source_registry_service.get_sources",
+                return_value=[],
+            ),
         ):
             app = AppTest.from_file(str(app_path)).run()
             self.assertEqual(app.exception, [])
@@ -546,6 +551,7 @@ class ApplicationWorkflowTests(unittest.TestCase):
                 "Clarification Queue",
                 "Application Tracker",
                 "Dashboard",
+                "Discover Jobs",
             ):
                 with self.subTest(page=page):
                     app.sidebar.radio[0].set_value(page).run()
@@ -565,7 +571,13 @@ class ApplicationWorkflowTests(unittest.TestCase):
         inspector = inspect(startup_engine)
         self.assertTrue(inspector.has_table("candidates"))
         self.assertTrue(inspector.has_table("applications"))
+        self.assertTrue(inspector.has_table("job_sources"))
+        self.assertTrue(inspector.has_table("job_source_listings"))
         self.assertTrue(inspector.has_table("alembic_version"))
+        job_columns = {column["name"] for column in inspector.get_columns("jobs")}
+        self.assertTrue(
+            {"salary_currency", "salary_period", "salary_text"}.issubset(job_columns)
+        )
         constraints = {
             constraint["name"]
             for constraint in inspector.get_unique_constraints("applications")
@@ -576,6 +588,34 @@ class ApplicationWorkflowTests(unittest.TestCase):
             {index["name"] for index in inspector.get_indexes("applications")},
         )
         startup_engine.dispose()
+
+    def test_discovery_migration_adds_columns_to_legacy_jobs_table(self):
+        from app.database import database
+
+        legacy_db = Path(self.temp_dir.name) / "legacy.db"
+        legacy_engine = create_engine(f"sqlite:///{legacy_db}")
+        with legacy_engine.begin() as connection:
+            connection.exec_driver_sql("CREATE TABLE jobs (id INTEGER PRIMARY KEY)")
+            connection.exec_driver_sql(
+                "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"
+            )
+            connection.exec_driver_sql(
+                "INSERT INTO alembic_version (version_num) VALUES (?)",
+                ("0002_reapply_cooldown",),
+            )
+        with (
+            patch.object(database, "engine", legacy_engine),
+            patch.object(database, "DATABASE_URL", f"sqlite:///{legacy_db}"),
+        ):
+            database._run_alembic_migrations()
+
+        inspector = inspect(legacy_engine)
+        columns = {column["name"] for column in inspector.get_columns("jobs")}
+        self.assertTrue(
+            {"salary_currency", "salary_period", "salary_text"}.issubset(columns)
+        )
+        self.assertTrue(inspector.has_table("job_sources"))
+        legacy_engine.dispose()
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 ## Current status
 
-Phases 1–8 are implemented in the local prototype. Phase 8 now includes permanent application history with configurable cooldowns, progressive batching, candidate clarification, extensible contracts, and manual-safe execution.
+Phases 1–8 and the multi-source discovery engine are implemented in the local prototype. Application history remains permanent with configurable cooldowns, progressive batching, candidate clarification, extensible contracts, and manual-safe execution.
 
 ## Implemented
 
@@ -27,6 +27,13 @@ Phases 1–8 are implemented in the local prototype. Phase 8 now includes perman
 - The Clarification Queue reuses eligible approved answers, pauses missing, ambiguous, and high-stakes questions, and saves candidate-approved answers transactionally to the selected answer-bank scope.
 - `JobSourceConnector` and `ApplicationExecutor` protocols define future extension points. The current executor is manual-only and explicitly hands off authentication, CAPTCHA, and submission steps to the candidate.
 - Batch Review, Clarification Queue, Application Tracker, and Dashboard application status summaries are available in Streamlit. Manual applications are marked `Applied` only after explicit candidate confirmation.
+- Thirteen read-only connector types are available: Greenhouse, Lever, Ashby, Arbeitnow, Jobicy, Remote OK, Himalayas, We Work Remotely RSS, generic RSS/Atom, mapped XML, SmartRecruiters, Remotive (opt-in), and USAJOBS (disabled by default). Employer-specific ATS boards can be registered independently.
+- `JobSource` stores connector configuration, terms approval, rate-limit/backoff state, latest source health, and counts. `JobSourceListing` retains each provider listing and maps it to a canonical local `Job`.
+- `JobService.upsert_normalized_job` deduplicates normalized URLs and title/company/location identities across providers while retaining separate source listings. Every discovered job is checked against the candidate's active applications and configured reapply cooldown; application history is never removed.
+- The discovery runner rate-limits each source, spaces requests by at least one second within a run, applies bounded HTTP timeouts/response sizes, isolates source failures, and backs off after failures. India-first filtering defaults to Indian hubs and explicit India/APAC/global-remote eligibility.
+- Salary normalization retains currency, period, and source text; LPA ranges are stored as annual INR amounts and displayed as LPA. No currency conversion is performed.
+- The Discover Jobs page registers and manages sources, collects editable role/location criteria, starts an on-demand run, and displays source health and run outcomes. `python -m app.discovery_cli --candidate-id <id>` provides a one-shot entry point for local OS scheduling.
+- Only the selected search terms and locations are sent to the chosen sources. Candidate identity, resumes, and answer-bank contents are not sent. Credentials are referenced through environment-variable names and are not stored in SQLite.
 
 ## Remaining limitations
 
@@ -34,11 +41,12 @@ Phases 1–8 are implemented in the local prototype. Phase 8 now includes perman
 - The prototype is single-user. Candidate IDs scope candidate/resume/extraction operations; no account-level isolation exists.
 - Upload and LLM processing run synchronously in Streamlit.
 - Screening questions must currently be entered by the candidate; external application-form parsing and automatic answer filling are not implemented.
-- No automated job-source collectors or automatic submission executors are enabled.
+- Connectors run only when registered, terms-approved, enabled, and due. No LinkedIn, Naukri, Indeed, or Foundit scraping is included. Workday is supported only through an authorized employer-provided XML-compatible feed, not guessed endpoints.
+- External source terms and real-world feed behavior must still be verified for each source configured by the candidate; tests use fixture responses and do not call live portals.
 
 ## Tests and dependencies
 
-- Forty-six `unittest` cases cover resume processing, profile/preferences, SQLite and Alembic migrations, local jobs, explainable matching, resume tailoring, cooldowns, progressive batches, clarification reuse, approval boundaries, and Streamlit UI smoke checks.
+- Sixty-one `unittest` cases cover resume processing, profile/preferences, SQLite and Alembic migrations, local jobs, explainable matching, resume tailoring, cooldowns, progressive batches, clarification reuse, approval boundaries, connector parsing, cross-source deduplication, cooldown classification, rate limiting, source-failure isolation, CLI search-boundary behavior, and Streamlit UI smoke checks.
 - `requirements.txt` is the sole pinned runtime manifest. It includes Streamlit, SQLAlchemy, Pydantic, pandas, Ollama, HTTPX, PyPDF2, python-docx, and email-validator.
 - Existing-environment checks and a clean Python 3.14.4 virtualenv install from `requirements.txt` pass; `pip check` and imports pass in both.
 - The resume workflow was previously verified with local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume in an isolated temporary database. Phase 8 UI routes are smoke-tested with Streamlit `AppTest`; live portal behavior is intentionally not exercised.
@@ -85,4 +93,11 @@ The app now generates local, job-specific resume drafts for a candidate and targ
 
 The core application-management workflow is implemented: versioned Alembic schema changes, permanent application rows, a configurable exact-job cooldown (15 days by default), zero-day same-company/different-role cooldown, and a partial unique index for active duplicates. Draft batches select up to 20 jobs through progressive relaxation and require candidate approval. Screening questions can reuse approved scoped answers or pause for clarification; saved answers are approved explicitly. The tracker supports manual handoff and requires candidate confirmation before recording `Applied`.
 
-The `JobSourceConnector` and `ApplicationExecutor` contracts are implemented, but no automated collectors or submission executors are enabled. Questions and job listings are currently supplied manually.
+## Multi-source discovery conclusion
+
+The discovery framework includes public ATS APIs, public job APIs, RSS/Atom, and
+mapped XML feeds. Source use is opt-in and terms-gated. USAJOBS is disabled by
+default; Remotive requires explicit opt-in and is limited to one registered
+connector with a six-hour minimum interval. The in-app runner is on-demand; the
+CLI is suitable for local OS scheduling. Live source use remains subject to
+source-specific terms, credentials, and candidate configuration.

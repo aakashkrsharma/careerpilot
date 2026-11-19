@@ -32,17 +32,19 @@ def get_db():
 def init_db():
     """Initialize database tables"""
     from .models import Base
-    phase8_tables = {
+    migrated_tables = {
         "application_batches",
         "applications",
         "candidate_answer_bank",
         "clarification_requests",
         "application_status_events",
+        "job_sources",
+        "job_source_listings",
     }
     baseline_tables = [
         table
         for table in Base.metadata.sorted_tables
-        if table.name not in phase8_tables
+        if table.name not in migrated_tables
     ]
     Base.metadata.create_all(bind=engine, tables=baseline_tables)
     _migrate_candidate_profile_columns()

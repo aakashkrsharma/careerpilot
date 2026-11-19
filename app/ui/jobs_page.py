@@ -144,10 +144,12 @@ def show_jobs_page():
                 st.write(f"**Location:** {job.location or 'Not specified'}")
                 st.write(f"**Work Mode:** {job.work_mode or 'Not specified'}")
                 st.write(f"**Source:** {job.source}")
+                compensation = _format_compensation(job)
+                if compensation:
+                    st.write(f"**Compensation:** {compensation}")
                 if job.required_skills:
                     st.write(f"**Required Skills:** {job.required_skills}")
-                if job.source_url:
-                    st.link_button("Open Job", job.source_url)
+                _show_source_links(job)
                 if job.description:
                     with st.expander("Job Description"):
                         st.write(job.description)
@@ -163,6 +165,9 @@ def show_jobs_page():
             st.write(f"**Location:** {job.location or 'Not specified'}")
             st.write(f"**Work Mode:** {job.work_mode or 'Not specified'}")
             st.write(f"**Source:** {job.source}")
+            compensation = _format_compensation(job)
+            if compensation:
+                st.write(f"**Compensation:** {compensation}")
             if job.required_skills:
                 st.write(f"**Required Skills:** {job.required_skills}")
             if match.matched_skills:
@@ -182,11 +187,58 @@ def show_jobs_page():
                 st.write(
                     f"**Minimum Experience:** {job.minimum_experience} years"
                 )
-            if job.source_url:
-                st.link_button("Open Job", job.source_url)
+            _show_source_links(job)
             if job.description:
                 with st.expander("Job Description"):
                     st.write(job.description)
+
+
+def _format_compensation(job):
+    if job.salary_min is None and job.salary_max is None:
+        return job.salary_text or None
+    currency = job.salary_currency or "Unspecified currency"
+    period = job.salary_period or "period unspecified"
+    if currency == "INR" and period == "annual":
+        minimum = job.salary_min / 100_000 if job.salary_min is not None else None
+        maximum = job.salary_max / 100_000 if job.salary_max is not None else None
+        suffix = "LPA"
+        values = (
+            f"{minimum:g}" if minimum is not None else "not specified",
+            f"{maximum:g}" if maximum is not None else "not specified",
+        )
+    else:
+        values = (
+            f"{job.salary_min:,}" if job.salary_min is not None else "not specified",
+            f"{job.salary_max:,}" if job.salary_max is not None else "not specified",
+        )
+        suffix = f"{currency} / {period}"
+    if values[0] == values[1]:
+        return f"{values[0]} {suffix}"
+    return f"{values[0]} - {values[1]} {suffix}"
+
+
+def _show_source_links(job):
+    listings = job_service.get_job_source_listings(job.id)
+    if not listings:
+        if job.source_url:
+            st.link_button("Open Job", job.source_url)
+        return
+    seen_urls = set()
+    for index, listing in enumerate(listings):
+        if not listing.source_url or listing.source_url in seen_urls:
+            continue
+        seen_urls.add(listing.source_url)
+        st.link_button(
+            f"Open on {listing.source_name}",
+            listing.source_url,
+            key=f"job-source-{job.id}-{index}",
+        )
+    if job.source_url and job.source_url not in seen_urls:
+        st.link_button(
+            "Open Job",
+            job.source_url,
+            key=f"job-source-{job.id}-canonical",
+        )
 
 
 if __name__ == "__main__":

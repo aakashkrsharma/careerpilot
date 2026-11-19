@@ -159,9 +159,60 @@ class Job(Base):
     minimum_experience = Column(Integer)
     salary_min = Column(Integer)
     salary_max = Column(Integer)
+    salary_currency = Column(String(3))
+    salary_period = Column(String(20))
+    salary_text = Column(String)
     posted_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class JobSource(Base):
+    """Configured connector instance and its latest health/rate-limit state."""
+    __tablename__ = "job_sources"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_key = Column(String, nullable=False, unique=True, index=True)
+    connector_type = Column(String, nullable=False, index=True)
+    display_name = Column(String, nullable=False)
+    region_group = Column(String, nullable=False, default="india")
+    config_json = Column(Text, nullable=False, default="{}")
+    enabled = Column(Boolean, nullable=False, default=False, index=True)
+    terms_approved = Column(Boolean, nullable=False, default=False)
+    priority = Column(Integer, nullable=False, default=100)
+    min_interval_seconds = Column(Integer, nullable=False, default=3600)
+    next_allowed_at = Column(DateTime)
+    last_run_at = Column(DateTime)
+    last_success_at = Column(DateTime)
+    last_status = Column(String, nullable=False, default="never_run")
+    last_error = Column(Text)
+    consecutive_failures = Column(Integer, nullable=False, default=0)
+    last_fetched_count = Column(Integer, nullable=False, default=0)
+    last_created_count = Column(Integer, nullable=False, default=0)
+    last_updated_count = Column(Integer, nullable=False, default=0)
+    last_duplicate_count = Column(Integer, nullable=False, default=0)
+    last_cooldown_count = Column(Integer, nullable=False, default=0)
+    last_excluded_region_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class JobSourceListing(Base):
+    """A provider-specific listing mapped to a canonical local job."""
+    __tablename__ = "job_source_listings"
+    __table_args__ = (
+        UniqueConstraint("source_id", "listing_key", name="uq_source_listing_key"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_id = Column(Integer, ForeignKey("job_sources.id"), nullable=False, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False, index=True)
+    listing_key = Column(String, nullable=False)
+    external_id = Column(String)
+    source_url = Column(String)
+    source_updated_at = Column(DateTime)
+    first_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class TailoredResume(Base):

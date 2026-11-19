@@ -419,16 +419,26 @@ class ResumePipelineTests(unittest.TestCase):
 
         from app.ui import dashboard_page
 
-        with patch.multiple(
-            "app.ui.dashboard_page.st",
-            header=DEFAULT,
-            subheader=DEFAULT,
-            dataframe=DEFAULT,
-            selectbox=DEFAULT,
-            markdown=DEFAULT,
-            write=DEFAULT,
-            info=DEFAULT,
-        ) as widgets:
+        with (
+            patch.multiple(
+                "app.ui.dashboard_page.st",
+                header=DEFAULT,
+                subheader=DEFAULT,
+                dataframe=DEFAULT,
+                selectbox=DEFAULT,
+                markdown=DEFAULT,
+                write=DEFAULT,
+                info=DEFAULT,
+            ) as widgets,
+            patch(
+                "app.services.application_service.SessionLocal",
+                self.session_factory,
+            ),
+            patch(
+                "app.services.clarification_queue_service.SessionLocal",
+                self.session_factory,
+            ),
+        ):
             widgets["selectbox"].return_value = (
                 f"{candidate.full_name} ({candidate.email})"
             )

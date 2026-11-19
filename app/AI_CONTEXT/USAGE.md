@@ -8,7 +8,7 @@ Start the app from the project root (the directory containing `app/` and `requir
 python -m streamlit run app/main.py
 ```
 
-The app has Dashboard, Candidate Profile, Jobs, Resume Tailoring, Batch Review,
+The app has Dashboard, Candidate Profile, Jobs, Discover Jobs, Resume Tailoring, Batch Review,
 Clarification Queue, Application Tracker, Upload Resume, and Review Information
 pages.
 
@@ -19,9 +19,66 @@ pages.
 3. Save the job. Duplicate URLs and duplicate manual title/company/location combinations are rejected.
 4. Use the filters to narrow local jobs by title/company, location, work mode, skills, and candidate experience.
 
-Job listings are currently entered manually; CareerPilot does not automatically
-collect jobs or submit applications. Source URLs are manually supplied and only
-open when you choose.
+Jobs can be entered manually or discovered through configured, terms-approved
+connectors; CareerPilot does not automatically submit applications. Source URLs
+are manually supplied or retained from provider listings and only open when
+you choose.
+
+## Multi-source job discovery
+
+1. Open Discover Jobs and expand Register a source.
+2. Select an adapter: Greenhouse, Lever, Ashby, Arbeitnow, Jobicy, Remote OK,
+   Himalayas, We Work Remotely RSS, authorized RSS/Atom, mapped XML,
+   SmartRecruiters, Remotive, or USAJOBS.
+3. Configure the board token/site, authorized HTTPS feed, or required
+   environment-variable names. Never paste API keys or tokens into source
+   configuration.
+4. Review the source documentation/terms, confirm permission and attribution,
+   then enable it. Sources without terms approval do not run. USAJOBS and
+   Remotive are opt-in; USAJOBS starts disabled and Remotive has one source
+   registration with at least six hours between requests.
+5. Review and edit the role/search terms and locations before clicking Discover
+   Jobs. India-first filtering is enabled by default for Indian hubs and jobs
+   explicitly eligible in India/APAC or worldwide. Ambiguous `Remote` listings
+   are excluded unless the source identifies eligible regions.
+6. Review source health and run counts. A failing source does not stop other
+   sources. The app preserves each provider listing while deduplicating the
+   canonical job and reports active/application-cooldown blocks without
+   deleting history.
+
+The connector catalog includes multiple employer ATS boards; register separate
+Greenhouse, Lever, and Ashby board tokens to monitor multiple companies.
+Workday endpoints are not guessed. Use mapped XML only when an employer
+provides an authorized feed and field mapping.
+
+The search terms and locations you enter are sent to the selected source APIs.
+Candidate name, email, resume content, and answer-bank data are not sent.
+Source requests are HTTPS-only, rate-limited, time-bounded, size-capped, and do
+not follow redirects. No LinkedIn, Naukri, Indeed, or Foundit scraping is
+included.
+
+### Scheduled local discovery
+
+For a one-shot run of enabled sources that are due, invoke this from the project
+root:
+
+```bash
+python -m app.discovery_cli --candidate-id 1
+```
+
+The command can be called by cron, systemd timers, or Task Scheduler. It uses
+the candidate's preferred roles/locations unless `--query` or `--locations` is
+provided. Use `--all-regions` only when you want to disable India/APAC
+eligibility filtering. The CLI respects source cooldown intervals and does not
+run a background scheduler inside Streamlit.
+
+USAJOBS requires `USAJOBS_API_KEY` and `USAJOBS_USER_AGENT` environment
+variables. SmartRecruiters requires `SMARTRECRUITERS_API_TOKEN`. Secret values
+remain in the environment and are never written to SQLite.
+
+Salary parsing retains original text and source currency/period. INR LPA values
+are stored as annual INR amounts and displayed as LPA; CareerPilot does not
+convert between currencies or assume an unspecified pay period.
 
 ## Job matching
 
@@ -111,11 +168,12 @@ Approved values fill empty candidate profile fields by default. To replace exist
 - Original resume files: `data/resumes/`
 - Extracted resume text and review data: SQLite (`resumes` and `extracted_info`)
 - Jobs, applications, status events, clarification requests, and answer-bank entries: SQLite
+- Connector configuration, source health, and provider listing provenance: SQLite
 
 ## Current limitations
 
 - The model defaults to `llama3`; use `OLLAMA_MODEL` to select another installed model.
 - `OLLAMA_BASE_URL` configures the Ollama client and defaults to `http://localhost:11434`.
 - The app is local and single-user; candidate relationships do not provide account-level isolation.
-- Automated source collectors, application-form question extraction, automatic answer filling, and automatic submission are not enabled.
+- External connectors run only after registration, terms approval, enablement, and their rate-limit interval. Application-form question extraction, automatic answer filling, and automatic submission are not enabled.
 - No REST API or export feature is implemented.

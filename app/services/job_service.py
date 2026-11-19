@@ -1,13 +1,15 @@
 """Local job discovery input, storage, filtering, and deduplication."""
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.database.database import SessionLocal
-from app.database.models import Job
+from app.database.models import Job, JobSource, JobSourceListing
+from app.models.workflow import JobListingReference, JobUpsertResult, SourceJob
 
 
 TRACKING_PARAMETERS = {
@@ -136,6 +138,163 @@ class JobService:
                 "This job already exists for the selected source."
             ) from exc
 
+    def upsert_normalized_job(
+        self,
+        source_job: SourceJob,
+        *,
+        source_id: int,
+        source_updated_at: Optional[datetime] = None,
+    ) -> JobUpsertResult:
+        """Idempotently associate one provider listing with a canonical job."""
+        if not isinstance(source_job.title, str) or not source_job.title.strip():
+            raise ValueError("Job title is required.")
+        if not isinstance(source_job.company, str) or not source_job.company.strip():
+            raise ValueError("Company name is required.")
+        if not isinstance(source_job.source, str) or not source_job.source.strip():
+            raise ValueError("Source is required.")
+        if type(source_id) is not int or source_id <= 0:
+            raise ValueError("A valid source registry ID is required.")
+        for field_name, value in (
+            ("Minimum experience", source_job.minimum_experience),
+            ("Minimum salary", source_job.salary_min),
+            ("Maximum salary", source_job.salary_max),
+        ):
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValueError(f"{field_name} must be a non-negative integer.")
+        if (
+            source_job.salary_min is not None
+            and source_job.salary_max is not None
+            and source_job.salary_min > source_job.salary_max
+        ):
+            raise ValueError("Minimum salary cannot exceed maximum salary.")
+        if source_job.salary_currency and (
+            not isinstance(source_job.salary_currency, str)
+            or len(source_job.salary_currency.strip()) != 3
+        ):
+            raise ValueError("Salary currency must be a three-letter code.")
+
+        source_updated_at = source_updated_at or source_job.source_updated_at
+        normalized_url = self.normalize_source_url(source_job.source_url)
+        source_key = self.create_source_key(
+            normalized_url,
+            source_job.title,
+            source_job.company,
+            source_job.location,
+        )
+        external_id = (
+            str(source_job.source_external_id).strip()
+            if source_job.source_external_id is not None
+            and str(source_job.source_external_id).strip()
+            else None
+        )
+        if external_id:
+            listing_key = f"id:{external_id}"
+        elif normalized_url:
+            listing_key = f"url:{normalized_url}"
+        else:
+            listing_key = f"hash:{source_key}"
+
+        with SessionLocal.begin() as db:
+            listing_query = db.query(JobSourceListing).filter(
+                JobSourceListing.source_id == source_id
+            )
+            listing = (
+                listing_query.filter(JobSourceListing.listing_key == listing_key)
+                .first()
+            )
+            if listing is None and normalized_url:
+                listing = (
+                    listing_query.filter(
+                        JobSourceListing.source_url == normalized_url
+                    )
+                    .first()
+                )
+
+            job = (
+                db.query(Job).filter(Job.id == listing.job_id).first()
+                if listing is not None
+                else None
+            )
+            if job is None:
+                job = db.query(Job).filter(Job.source_job_key == source_key).first()
+            if job is None and normalized_url:
+                job = db.query(Job).filter(Job.source_url == normalized_url).first()
+            if job is None:
+                job = (
+                    db.query(Job)
+                    .filter(
+                        func.lower(Job.title) == source_job.title.strip().lower(),
+                        func.lower(Job.company) == source_job.company.strip().lower(),
+                        func.lower(func.coalesce(Job.location, ""))
+                        == (source_job.location or "").strip().lower(),
+                    )
+                    .first()
+                )
+
+            created = job is None
+            if created:
+                job = Job(
+                    source=source_job.source.strip().lower(),
+                    source_url=normalized_url,
+                    source_job_key=source_key,
+                    title=source_job.title.strip(),
+                    company=source_job.company.strip(),
+                    location=_clean(source_job.location),
+                    work_mode=_clean(source_job.work_mode),
+                    description=_clean(source_job.description),
+                    required_skills=_clean(source_job.required_skills),
+                    minimum_experience=source_job.minimum_experience,
+                    salary_min=source_job.salary_min,
+                    salary_max=source_job.salary_max,
+                    salary_currency=_clean(source_job.salary_currency).upper()
+                    if _clean(source_job.salary_currency)
+                    else None,
+                    salary_period=_clean(source_job.salary_period),
+                    salary_text=_clean(source_job.salary_text),
+                    posted_at=source_job.posted_at,
+                )
+                db.add(job)
+                db.flush()
+                updated = False
+            else:
+                replace_values = listing is not None and listing.job_id == job.id
+                updated = _merge_source_job(
+                    job,
+                    source_job,
+                    normalized_url,
+                    replace_values=replace_values,
+                )
+
+            if listing is None:
+                listing = JobSourceListing(
+                    source_id=source_id,
+                    job_id=job.id,
+                    listing_key=listing_key,
+                    external_id=external_id,
+                    source_url=normalized_url,
+                    source_updated_at=source_updated_at,
+                )
+                db.add(listing)
+                db.flush()
+            else:
+                listing.job_id = job.id
+                listing.external_id = external_id or listing.external_id
+                listing.source_url = normalized_url or listing.source_url
+                listing.source_updated_at = source_updated_at or listing.source_updated_at
+                listing.last_seen_at = datetime.now(timezone.utc).replace(
+                    tzinfo=None
+                )
+                db.flush()
+
+            result = JobUpsertResult(
+                job_id=job.id,
+                listing_id=listing.id,
+                created=created,
+                updated=updated,
+                matched_existing=not created,
+            )
+            return result
+
     def get_jobs(self) -> list[Job]:
         with SessionLocal() as db:
             jobs = db.query(Job).order_by(Job.created_at.desc(), Job.id.desc()).all()
@@ -149,6 +308,24 @@ class JobService:
             if job is not None:
                 db.expunge(job)
             return job
+
+    def get_job_source_listings(self, job_id: int) -> list[JobListingReference]:
+        with SessionLocal() as db:
+            rows = (
+                db.query(JobSourceListing, JobSource.display_name)
+                .join(JobSource, JobSource.id == JobSourceListing.source_id)
+                .filter(JobSourceListing.job_id == job_id)
+                .order_by(JobSource.display_name, JobSourceListing.id)
+                .all()
+            )
+            return [
+                JobListingReference(
+                    source_name=display_name,
+                    source_url=listing.source_url,
+                    external_id=listing.external_id,
+                )
+                for listing, display_name in rows
+            ]
 
     def filter_jobs(
         self,
@@ -203,3 +380,44 @@ class JobService:
 
 
 job_service = JobService()
+
+
+def _clean(value: Optional[str]) -> Optional[str]:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _merge_source_job(
+    job: Job,
+    source_job: SourceJob,
+    normalized_url: Optional[str],
+    *,
+    replace_values: bool,
+) -> bool:
+    changes = {
+        "title": source_job.title.strip(),
+        "company": source_job.company.strip(),
+        "source_url": normalized_url,
+        "location": _clean(source_job.location),
+        "work_mode": _clean(source_job.work_mode),
+        "description": _clean(source_job.description),
+        "required_skills": _clean(source_job.required_skills),
+        "minimum_experience": source_job.minimum_experience,
+        "salary_min": source_job.salary_min,
+        "salary_max": source_job.salary_max,
+        "salary_currency": _clean(source_job.salary_currency).upper()
+        if _clean(source_job.salary_currency)
+        else None,
+        "salary_period": _clean(source_job.salary_period),
+        "salary_text": _clean(source_job.salary_text),
+        "posted_at": source_job.posted_at,
+    }
+    changed = False
+    for field_name, incoming in changes.items():
+        if incoming is None:
+            continue
+        current = getattr(job, field_name)
+        if replace_values or current in (None, ""):
+            if current != incoming:
+                setattr(job, field_name, incoming)
+                changed = True
+    return changed

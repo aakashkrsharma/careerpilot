@@ -12,6 +12,7 @@ careerpilot/
 ├── requirements.txt
 ├── app/
 │   ├── main.py
+│   ├── discovery_cli.py
 │   ├── database/
 │   │   ├── database.py
 │   │   └── models.py
@@ -26,6 +27,15 @@ careerpilot/
 │   │   ├── extraction_service.py
 │   │   ├── llm_service.py
 │   │   ├── job_service.py
+│   │   ├── job_discovery_service.py
+│   │   ├── job_source_registry_service.py
+│   │   ├── salary_parser.py
+│   │   ├── connectors/
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py
+│   │   │   ├── ats.py
+│   │   │   ├── public_apis.py
+│   │   │   └── feeds.py
 │   │   ├── matching_service.py
 │   │   ├── tailoring_service.py
 │   │   ├── application_service.py
@@ -38,6 +48,7 @@ careerpilot/
 │   ├── ui/
 │   │   ├── dashboard_page.py
 │   │   ├── jobs_page.py
+│   │   ├── job_discovery_page.py
 │   │   ├── batch_review_page.py
 │   │   ├── clarification_queue_page.py
 │   │   ├── application_tracker_page.py
@@ -59,12 +70,17 @@ careerpilot/
 │   └── resumes/
 ├── tests/
 │   ├── test_resume_pipeline.py
+│   ├── test_resume_tailoring.py
+│   ├── test_job_discovery.py
+│   ├── test_job_matching.py
 │   ├── test_application_phase8.py
-│   └── test_application_workflow.py
+│   ├── test_application_workflow.py
+│   └── test_multi_source_discovery.py
 ├── migrations/
 │   └── versions/
 │       ├── 0001_phase8_application_management.py
-│       └── 0002_application_reapply_cooldown.py
+│       ├── 0002_application_reapply_cooldown.py
+│       └── 0003_job_discovery_sources.py
 ├── careerpilot.db
 └── .env (optional local config)
 ```
@@ -73,7 +89,7 @@ careerpilot/
 
 ### `app/main.py`
 
-This is the application entry point. It initializes the database and routes the app to Dashboard, Upload, or Review screens via a sidebar radio selector.
+This is the application entry point. It initializes the database and routes the app to Dashboard, Jobs, Discover Jobs, resume, tailoring, and application workflow pages.
 
 ### `app/database/`
 
@@ -91,6 +107,10 @@ Contains the business workflow:
 - `llm_service.py`: Ollama prompt generation and response parsing
 - `extraction_service.py`: extraction persistence, review, approval, and candidate profile updates
 - `application_service.py`: application cooldown, permanent history, and status transitions
+- `job_discovery_service.py`: due-source runner, rate limits, cooldown classification, and per-source health
+- `job_source_registry_service.py`: terms-gated source registration and configuration
+- `connectors/`: read-only ATS, public API, RSS/Atom, and mapped XML adapters
+- `salary_parser.py`: currency/period-aware compensation parsing, including INR/LPA
 - `answer_bank_service.py`: scoped approved answer storage and lookup
 - `batch_selection_service.py`: up-to-20-job progressive selection snapshots
 - `clarification_queue_service.py`: missing/high-stakes question review and answer reuse
@@ -105,6 +125,8 @@ Contains the end-user screens:
 - `review_page.py`: adjust and approve extracted fields
 - `dashboard_page.py`: view summary and details
 - `profile_page.py`: edit candidate profile and job preferences
+- `jobs_page.py`: manage and inspect canonical jobs with provider listing links
+- `job_discovery_page.py`: register sources, trigger discovery, and inspect health
 - `batch_review_page.py`, `clarification_queue_page.py`, and `application_tracker_page.py`: Phase 8 application workflow
 
 ### `data/resumes/`
@@ -124,9 +146,10 @@ Contains focused service integration tests using a temporary SQLite database and
 5. The review page persists corrections and approval state.
 6. Approved profile fields are applied only after approval; replacement of populated values requires explicit confirmation.
 7. The dashboard reads candidate, resume, and extracted-info rows.
-8. Batch Review stores a candidate-approved snapshot of eligible jobs in Application and ApplicationBatch rows.
-9. Clarification Queue reuses eligible approved answers or pauses applications for explicit candidate input.
-10. Application Tracker records candidate-controlled handoffs and retains completion/status history.
+8. Discover Jobs sends only user-selected role/location criteria to enabled, terms-approved connectors, upserts canonical jobs, preserves provider listing links, and checks application cooldowns.
+9. Batch Review stores a candidate-approved snapshot of eligible jobs in Application and ApplicationBatch rows.
+10. Clarification Queue reuses eligible approved answers or pauses applications for explicit candidate input.
+11. Application Tracker records candidate-controlled handoffs and retains completion/status history.
 
 ## Notable architectural choice
 

@@ -90,12 +90,20 @@ Implemented:
 
 Current Phase 8 boundaries:
 
-- Job listings and screening questions are entered manually; no portal collectors, external-form extraction, or automatic form filling are enabled.
 - The executor is manual-only; no automatic submission is enabled.
+- Screening questions are still entered manually; external-form extraction and automatic answer filling are not enabled.
 
-## Next development phase
+## Multi-source discovery engine — implemented
 
-1. Select one permitted job source and implement a source-specific connector that returns normalized records through `JobSourceConnector`; verify source terms and access constraints before enabling it.
-2. Add source-specific question intake only where permitted, retaining candidate review before answer reuse or submission.
-3. Consider an automated executor only for a source with explicit permission, safe handling of authentication/CAPTCHA boundaries, and end-to-end approval tests.
-4. Continue with interview preparation after the discovery and application workflow is exercised with real candidate-managed listings.
+- Thirteen read-only connector types cover public ATS APIs, public job APIs, RSS/Atom, and mapped XML.
+- Sources require local registration, explicit terms approval, and enablement. USAJOBS is disabled by default; Remotive is opt-in and limited to one registration with a six-hour minimum interval.
+- The runner normalizes/upserts jobs, retains provider listing URLs, applies India/APAC eligibility, checks active applications and the 15-day cooldown, persists source health, rate-limits requests, and isolates source failures.
+- Discover Jobs provides the on-demand UI. `python -m app.discovery_cli --candidate-id <id>` can be run by an OS scheduler.
+- Source URLs and terms need candidate verification before enablement; tests use mocked responses and do not call live portals.
+
+## Recommended next steps
+
+1. Register and terms-check the initial permitted sources, starting with employer ATS boards hiring in India and authorized RSS/XML feeds. Add multiple Greenhouse, Lever, or Ashby boards as needed.
+2. Verify real-source behavior, attribution, India/APAC filtering, currency parsing, cooldown reporting, and source-health recovery in the local UI. Keep USAJOBS disabled unless deliberately configured with its API key and contact User-Agent environment variables.
+3. Use a local OS scheduler to call the CLI only after source intervals and search criteria are configured; no in-process scheduler is needed.
+4. After discovery is exercised with candidate-managed sources, proceed to interview preparation. Consider form-question intake only where permitted, keeping candidate review and manual-only submission boundaries intact.

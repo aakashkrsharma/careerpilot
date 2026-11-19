@@ -29,19 +29,32 @@ early local prototype:
 - Application history is retained in SQLite. Exact-job reapplications use a 15-day cooldown by default; a different role at the same company is immediately eligible by default.
 - Candidate-approved screening answers can be saved and reused by question key and scope. Missing, ambiguous, and high-stakes questions pause the application in a clarification queue.
 - A manual-only execution adapter provides handoff steps and never bypasses authentication or CAPTCHA walls. Candidates confirm manual completion in the Application Tracker.
-- The `JobSourceConnector` and `ApplicationExecutor` protocols define extension points; no automated job collectors or submission adapters are currently included.
+- Multi-source discovery uses 13 read-only connector types: Greenhouse, Lever, Ashby, Arbeitnow, Jobicy, Remote OK, Himalayas, We Work Remotely RSS, generic RSS/Atom, mapped XML, SmartRecruiters, Remotive (opt-in), and USAJOBS (disabled by default). Multiple employer boards can be registered for ATS connectors.
+- Connector configuration, terms approval, rate-limit/health state, and provider-specific listing provenance are stored locally. Discovered listings upsert into canonical jobs and are checked against the candidate's active applications and 15-day exact-job cooldown.
+- India-first discovery defaults to Indian hubs and filters out ambiguous global-remote listings. INR/LPA compensation is normalized to annual INR amounts while retaining currency, period, and source text.
+- The `JobSourceConnector` and `ApplicationExecutor` protocols remain extension points. The built-in application executor is manual-only; no login, CAPTCHA, or protected form automation is performed.
 
 ## Important constraints
 
 - Ollama is used for local inference; failures and malformed/empty responses are surfaced instead of replaced with sample candidate data. `OLLAMA_BASE_URL` and `OLLAMA_MODEL` configure the Ollama client.
 - The app is intentionally single-user for the current prototype. Resume and extraction operations are scoped by candidate ID; there is no account-level authentication or multi-user isolation.
 - Legacy `.doc` is not supported; upload accepts PDF, DOCX, and TXT.
-- SQLite schema changes use Alembic for Phase 8 tables, with existing candidate-profile columns added during startup. Runtime dependencies are consolidated in `requirements.txt`.
+- SQLite schema changes use Alembic through revision `0003_job_discovery`; legacy candidate-profile columns are added during startup. Runtime dependencies are consolidated in `requirements.txt`.
 - Screening questions currently enter through the Clarification Queue UI; question extraction from external application forms is not implemented.
 
 ## Maturity
 
-Treat the project as an early prototype. Job discovery is manual, application
-forms are not automatically filled, and submission is not automated. Add future
-connectors and executors only within each source's permitted use and safety
-boundaries.
+Treat the project as an early prototype. Discovery connectors run only after a
+source is registered, its terms are approved, and it is enabled. No LinkedIn,
+Naukri, Indeed, or Foundit scraping is included. Workday is supported only when
+an employer provides an authorized XML-compatible feed; guessed endpoints are
+not used. USAJOBS and Remotive are opt-in, with USAJOBS disabled by default and
+Remotive limited to one registered source with a six-hour minimum interval.
+
+Use the Streamlit Discover Jobs page for an on-demand run, or schedule
+`python -m app.discovery_cli --candidate-id <id>` with the local operating
+system scheduler. Only user-selected search terms and locations are sent to a
+source; candidate identity, resume content, and answer-bank data remain local.
+Live behavior and terms still need to be verified for each source configured
+by the candidate. Application forms are not automatically filled and submission
+is not automated.

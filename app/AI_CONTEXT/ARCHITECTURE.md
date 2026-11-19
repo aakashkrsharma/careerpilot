@@ -12,6 +12,8 @@ CareerPilot uses a simple layered architecture centered on a Streamlit frontend 
 │  - Upload page              │
 │  - Review page              │
 │  - Dashboard page           │
+│  - Discover Jobs            │
+│  - Jobs                     │
 │  - Batch Review             │
 │  - Clarification Queue      │
 │  - Application Tracker      │
@@ -31,6 +33,9 @@ CareerPilot uses a simple layered architecture centered on a Streamlit frontend 
 │ - AnswerBankService          │
 │ - BatchSelectionService      │
 │ - ClarificationQueueService  │
+│ - JobSourceRegistryService   │
+│ - JobDiscoveryService       │
+│ - source connector adapters  │
 │ - JobSourceConnector protocol│
 │ - ApplicationExecutor protocol│
 └──────────────┬───────────────┘
@@ -59,13 +64,16 @@ Location: `app/database/`
 - `Resume`: stores file metadata, file path, extracted text, and process state
 - `ExtractedInfo`: stores structured fields reviewed/approved by the user
 - `ExtractionHistory`: tracks prompts, responses, and extraction attempts
+- `Job`: canonical local job opportunity and salary currency/period metadata
+- `JobSource`: configured connector instance and persistent health/rate-limit state
+- `JobSourceListing`: provider-specific listing identity and URL mapped to a canonical job
 
 ### Storage characteristics
 
 - database is SQLite by default (`careerpilot.db`)
 - data is stored locally in a single file
 - SQLAlchemy sessions are scoped to service operations and closed after the transaction completes
-- baseline tables are created first; Alembic owns the Phase 8 application schema and startup upgrades to `head`
+- baseline tables are created first; Alembic owns Phase 8 application and discovery schema changes and startup upgrades to `head`
 
 ## Service layer
 
@@ -111,9 +119,34 @@ Responsibilities:
 ### `JobService`
 
 - normalize and validate source URLs
-- create local job records and stable source keys
-- prevent duplicate jobs
+- create manual local job records and stable source keys
+- idempotently upsert normalized connector records across providers
+- retain provider-specific listing links while deduplicating canonical jobs
 - filter jobs by title/company, location, work mode, skills, and experience
+
+### `JobSourceRegistryService`
+
+- registers and manages connector instances, configuration, source groups, and terms approval
+- rejects stored credentials; connectors reference environment variables for required secrets
+- records source health and next-allowed timestamps in `JobSource`
+
+### `JobDiscoveryService`
+
+- runs enabled and terms-approved connectors on demand and skips sources that are not due
+- spaces requests by at least one second within a run, applies bounded HTTP timeouts/response sizes, and backs off after failures
+- isolates individual source failures and reports per-source counts and status
+- filters for explicit India/APAC/global-remote eligibility by default, upserts jobs, and counts active/cooldown-blocked application history without deleting listings
+- never sends candidate identity, resume content, or answer-bank data; only user-selected search criteria are passed to sources
+
+### Connector adapters
+
+The registry provides read-only adapters for Greenhouse, Lever, Ashby,
+Arbeitnow, Jobicy, Remote OK, Himalayas, We Work Remotely RSS, generic RSS/Atom,
+mapped XML, SmartRecruiters, Remotive (opt-in), and USAJOBS (disabled by
+default). Multiple employer boards can be registered for ATS connectors.
+Workday is supported only through an employer-provided authorized XML-compatible
+feed; guessed or scraped endpoints are not used. Remotive is limited to one
+registered source and a six-hour minimum interval.
 
 ### `MatchingService`
 
@@ -168,7 +201,7 @@ Responsibilities:
 - `JobSourceConnector` returns normalized `SourceJob` records from a `JobDiscoveryCriteria`; it does not persist jobs or application history
 - `ApplicationExecutor` receives an application, job, and explicit candidate approval and returns a typed execution result
 - `ManualApplicationExecutor` always hands off to the candidate; it never signs in, solves CAPTCHAs, or submits forms
-- no concrete automated source collectors or submission executors are implemented yet
+- discovery connectors are concrete and read-only; no automated application submission adapter is enabled
 ## UI layer
 
 Location: `app/ui/`
@@ -206,8 +239,15 @@ Location: `app/ui/`
 
 - manually adds a job or pastes source metadata and a description
 - displays and filters locally stored jobs
-- links to a source URL when provided
+- links to provider-specific listings when available, preserving source attribution
 - ranks jobs for the selected candidate and explains compatibility
+
+### `job_discovery_page.py`
+
+- registers and manages source connectors with explicit terms approval
+- lets the candidate review and edit role/location search terms before a run
+- triggers on-demand discovery and displays per-source health, rate limits, counts, and errors
+- filters India-first results and leaves USAJOBS disabled unless explicitly enabled
 
 ### `tailoring_page.py`
 
@@ -231,28 +271,29 @@ Location: `app/ui/`
 4. `ExtractionService` persists valid output as pending review and marks the resume processed.
 5. The review page saves corrections and approval status in one database transaction.
 6. Approved fields update empty profile values; replacing populated values requires explicit reviewer confirmation.
-7. Batch Review stores up to 20 selected application records as a draft snapshot; application status progression requires batch approval.
-8. The Clarification Queue reuses eligible approved answers or pauses on unresolved questions; a resolved answer can be saved atomically to the answer bank.
-9. The Application Tracker moves prepared work to a manual handoff; only an explicit candidate confirmation records `applied`.
+7. Discover Jobs sends only reviewed search terms/locations to enabled, terms-approved connectors. The runner normalizes and upserts records, retains provider listings, applies India/APAC eligibility, and checks active/cooldown application history.
+8. Batch Review stores up to 20 selected application records as a draft snapshot; application status progression requires batch approval.
+9. The Clarification Queue reuses eligible approved answers or pauses on unresolved questions; a resolved answer can be saved atomically to the answer bank.
+10. The Application Tracker moves prepared work to a manual handoff; only an explicit candidate confirmation records `applied`.
 
 ## Runtime assumptions
 
 - the app is designed to run locally on one machine
 - the Ollama server defaults to `http://localhost:11434`; `OLLAMA_BASE_URL` can override it
 - `OLLAMA_MODEL` selects the local model and defaults to `llama3`
-- no asynchronous queue or worker processes are used at this time
+- no asynchronous queue or in-process scheduler is used; the one-shot CLI can be invoked by the local OS scheduler
 
 ## Operational constraints
 
 This architecture is intentionally lightweight and assumes a single local user. Candidate IDs scope candidate/resume/extraction operations, but there is no account-level isolation. Other tradeoffs include:
 
 - no service isolation or horizontal scaling
-- no background retries or rate limiting
+- connector retries are not automatic; source-level rate limits and failure backoff are persisted and subsequent runs are operator/scheduler-triggered
 - no formal API boundary between the UI and backend
 - screening questions must be supplied manually; form extraction and automatic filling are not implemented
-- job-source protocols are extension points only; no automated collectors are enabled
+- source connectors are read-only and opt-in; no portal scraping is included
 - application execution is manual-only; no automated submission adapter is enabled
 
 ## Security and robustness notes
 
-The app is currently a local prototype. It has no authentication or user-level isolation, and uploaded files contain potentially sensitive personal information. It should not be exposed as a multi-user service without explicit access control and data-protection work. Extraction and parsing failures are surfaced to the user rather than converted to sample data.
+The app is currently a local prototype. It has no authentication or user-level isolation, and uploaded files contain potentially sensitive personal information. It should not be exposed as a multi-user service without explicit access control and data-protection work. Discovery requests are HTTPS-only, reject local/private-network hosts and redirects, and cap response size. Search terms and locations are the only candidate-derived values sent to sources; credentials remain in environment variables. Connectors require explicit source registration and terms approval. Extraction, parsing, and source failures are surfaced rather than converted to sample data.

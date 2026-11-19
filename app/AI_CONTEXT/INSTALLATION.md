@@ -59,6 +59,20 @@ export OLLAMA_MODEL=llama3
 
 `OLLAMA_MODEL` defaults to `llama3`. Set it to the exact model tag shown by `ollama list` if you use another installed model. `OLLAMA_BASE_URL` defaults to `http://localhost:11434` and configures the Ollama client.
 
+Job discovery uses outbound HTTPS only when you register, terms-approve, and
+enable a source. Most public connectors do not require credentials. Optional
+credentials belong in environment variables, never in the SQLite source
+configuration:
+
+```bash
+export USAJOBS_API_KEY="your-api-key"
+export USAJOBS_USER_AGENT="your-contact-user-agent"
+export SMARTRECRUITERS_API_TOKEN="your-token"
+```
+
+USAJOBS is disabled by default; Remotive is opt-in and rate-limited. See
+`USAGE.md` for source registration, privacy boundaries, and local scheduling.
+
 ## 6. Run the app
 
 From the project root (the directory containing `app/` and `requirements.txt`), launch the Streamlit UI:
@@ -74,6 +88,11 @@ The app should open in the default Streamlit browser or be available at:
 ```text
 http://localhost:8501
 ```
+
+For a one-shot discovery run from the project root, use
+`python -m app.discovery_cli --candidate-id <id>`. A local OS scheduler may
+invoke it periodically; source-specific rate limits and due times are enforced
+by the application.
 
 ## 7. First-run behavior
 

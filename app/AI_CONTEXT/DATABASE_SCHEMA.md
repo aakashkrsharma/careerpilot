@@ -2,7 +2,7 @@
 
 ## Overview
 
-CareerPilot defines core candidate, resume, job, tailoring, application, and answer-bank tables in a local SQLite database. Phase 8 adds permanent application and clarification history.
+CareerPilot defines core candidate, resume, job, tailoring, application, answer-bank, and source-discovery tables in a local SQLite database. Application and provider-listing history is retained.
 
 ## Database location
 
@@ -250,6 +250,9 @@ Stores locally entered or imported job opportunities.
 | `minimum_experience` | Integer | optional minimum years |
 | `salary_min` | Integer | optional minimum salary |
 | `salary_max` | Integer | optional maximum salary |
+| `salary_currency` | String(3) | ISO currency code when supplied by the source |
+| `salary_period` | String | annual, monthly, weekly, hourly, or source-provided interval |
+| `salary_text` | String | original compensation text when available |
 | `posted_at` | DateTime | optional source posting date |
 | `created_at` | DateTime | default UTC now |
 | `updated_at` | DateTime | auto-updated |
@@ -300,3 +303,72 @@ Stores generated, reviewed, and approved job-specific resume drafts.
 - ORM foreign keys do not declare cascade-delete behavior.
 - startup adds missing Phase 4 candidate profile columns for older local databases; those legacy additions predate the Alembic migration history.
 - Phase 6 matching results are calculated on demand and are not currently persisted.
+- Alembic revision `0003_job_discovery` adds source registry/provenance tables and salary metadata while preserving existing jobs.
+
+## Source discovery tables
+
+### `job_sources`
+
+One row per configured connector instance. Multiple Greenhouse, Lever, or Ashby
+company boards can be registered independently. Credentials are not stored;
+connectors keep only environment-variable names for required secrets.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer (PK) | source registry identity |
+| `source_key` | String | unique local key for this connector instance |
+| `connector_type` | String | adapter type such as `greenhouse`, `rss_atom`, or `jobicy` |
+| `display_name` | String | human-readable source label |
+| `region_group` | String | `india`, `global_remote`, or `us_global` |
+| `config_json` | Text | non-secret connector configuration |
+| `enabled` | Boolean | source is eligible to run |
+| `terms_approved` | Boolean | explicit local approval gate |
+| `priority` | Integer | lower values run first |
+| `min_interval_seconds` | Integer | per-instance minimum request interval |
+| `next_allowed_at` | DateTime | persisted next eligible run time |
+| `last_run_at` | DateTime | latest attempted run |
+| `last_success_at` | DateTime | latest successful run |
+| `last_status` | String | never_run, running, success, or failed |
+| `last_error` | Text | concise source-safe failure message |
+| `consecutive_failures` | Integer | used for exponential backoff |
+| `last_fetched_count` | Integer | normalized records returned by last run |
+| `last_created_count` | Integer | new canonical jobs in last run |
+| `last_updated_count` | Integer | existing jobs updated in last run |
+| `last_duplicate_count` | Integer | already-known jobs in last run |
+| `last_cooldown_count` | Integer | jobs blocked by candidate history |
+| `last_excluded_region_count` | Integer | jobs excluded by India/APAC policy |
+| `created_at`, `updated_at` | DateTime | local configuration timestamps |
+
+The source registry supports Greenhouse, Lever, Ashby, Arbeitnow, Jobicy,
+Remote OK, Himalayas, We Work Remotely RSS, generic RSS/Atom, mapped XML,
+SmartRecruiters, Remotive (opt-in), and USAJOBS (disabled by default).
+Workday endpoints are not guessed; an authorized employer feed may use the
+mapped XML connector. Remotive has one registered source and a six-hour minimum
+interval. Each network request is HTTPS-only, rejects private/local addresses
+and redirects, uses a bounded timeout, and caps response size.
+
+### `job_source_listings`
+
+Preserves provider identities and attribution links while `jobs` stores the
+deduplicated canonical opportunity.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer (PK) | listing row identity |
+| `source_id` | Integer (FK) | references `job_sources.id` |
+| `job_id` | Integer (FK) | references canonical `jobs.id` |
+| `listing_key` | String | source-local external ID, normalized URL, or stable fallback |
+| `external_id` | String | provider-specific listing ID when available |
+| `source_url` | String | normalized provider listing URL |
+| `source_updated_at` | DateTime | optional provider update time |
+| `first_seen_at` | DateTime | first local discovery |
+| `last_seen_at` | DateTime | most recent local discovery |
+
+Unique constraint: `(source_id, listing_key)`. Multiple source listings can
+point to one canonical job. Applications remain permanent; discovery counts an
+active application or a job inside the configured cooldown but does not delete
+the job or its listing.
+
+Salary values remain in the source currency with the source period. LPA values
+are normalized to annual INR amounts and displayed as LPA; no currency
+conversion or assumption of an unspecified salary period is performed.
