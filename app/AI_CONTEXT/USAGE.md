@@ -19,6 +19,18 @@ The app has Dashboard, Candidate Profile, Jobs, Upload Resume, and Review Inform
 
 CareerPilot does not scrape or submit applications. Source URLs are manually supplied and only open when you choose.
 
+## Job matching
+
+When a candidate is selected on the Jobs page, stored jobs are ranked by a compatibility score out of 100.
+
+- Skills: up to 50 points.
+- Experience: up to 20 points.
+- Location: up to 15 points.
+- Work mode: up to 10 points.
+- Preferred role: up to 5 points.
+
+Open “Why this score” for a job to see the component explanations and matched/missing skills.
+
 ## Candidate profile
 
 1. Open Candidate Profile from the sidebar.

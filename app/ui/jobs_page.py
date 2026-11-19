@@ -4,6 +4,7 @@ import streamlit as st
 
 from app.services.candidate_service import candidate_service
 from app.services.job_service import job_service
+from app.services.matching_service import matching_service
 
 
 def show_jobs_page():
@@ -128,15 +129,55 @@ def show_jobs_page():
         st.info("No jobs match the current filters.")
         return
 
-    for job in jobs:
+    ranked_matches = (
+        matching_service.rank_jobs(candidate, jobs)
+        if candidate
+        else []
+    )
+    jobs_by_id = {job.id: job for job in jobs}
+
+    if not candidate:
+        for job in jobs:
+            with st.container(border=True):
+                st.markdown(f"### {job.title}")
+                st.write(f"**Company:** {job.company}")
+                st.write(f"**Location:** {job.location or 'Not specified'}")
+                st.write(f"**Work Mode:** {job.work_mode or 'Not specified'}")
+                st.write(f"**Source:** {job.source}")
+                if job.required_skills:
+                    st.write(f"**Required Skills:** {job.required_skills}")
+                if job.source_url:
+                    st.link_button("Open Job", job.source_url)
+                if job.description:
+                    with st.expander("Job Description"):
+                        st.write(job.description)
+        return
+
+    for match in ranked_matches:
+        job = jobs_by_id[match.job_id]
         with st.container(border=True):
             st.markdown(f"### {job.title}")
+            st.progress(match.total_score)
+            st.write(f"**Compatibility:** {match.total_score}/100")
             st.write(f"**Company:** {job.company}")
             st.write(f"**Location:** {job.location or 'Not specified'}")
             st.write(f"**Work Mode:** {job.work_mode or 'Not specified'}")
             st.write(f"**Source:** {job.source}")
             if job.required_skills:
                 st.write(f"**Required Skills:** {job.required_skills}")
+            if match.matched_skills:
+                st.write(
+                    "**Matched Skills:** "
+                    + ", ".join(match.matched_skills)
+                )
+            if match.missing_skills:
+                st.write(
+                    "**Missing Skills:** "
+                    + ", ".join(match.missing_skills)
+                )
+            with st.expander("Why this score"):
+                for reason in match.explanation:
+                    st.write(f"- {reason}")
             if job.minimum_experience is not None:
                 st.write(
                     f"**Minimum Experience:** {job.minimum_experience} years"

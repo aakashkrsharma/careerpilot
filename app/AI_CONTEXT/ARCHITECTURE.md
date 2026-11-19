@@ -22,6 +22,7 @@ CareerPilot uses a simple layered architecture centered on a Streamlit frontend 
 │ - LLMService                 │
 │ - ExtractionService          │
 │ - JobService                 │
+│ - MatchingService            │
 └──────────────┬───────────────┘
                │ reads/writes
                ▼
@@ -103,6 +104,13 @@ Responsibilities:
 - prevent duplicate jobs
 - filter jobs by title/company, location, work mode, skills, and experience
 
+### `MatchingService`
+
+- compare candidate skills with required job skills
+- calculate skill, experience, location, work-mode, and role scores
+- list matched and missing skills
+- rank jobs and provide human-readable explanations
+
 ## UI layer
 
 Location: `app/ui/`
@@ -141,6 +149,7 @@ Location: `app/ui/`
 - manually adds a job or pastes source metadata and a description
 - displays and filters locally stored jobs
 - links to a source URL when provided
+- ranks jobs for the selected candidate and explains compatibility
 
 ## Current data flow
 

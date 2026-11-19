@@ -25,6 +25,7 @@ careerpilot/
 │   │   ├── extraction_service.py
 │   │   ├── llm_service.py
 │   │   ├── job_service.py
+│   │   ├── matching_service.py
 │   │   └── resume_service.py
 │   ├── ui/
 │   │   ├── dashboard_page.py

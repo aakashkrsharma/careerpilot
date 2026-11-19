@@ -142,3 +142,4 @@ Stores locally entered or imported job opportunities.
 - `ExtractedInfo` rows are initially pending (`is_reviewed=False`, `is_approved=False`) and store the prompt and raw model response.
 - ORM foreign keys do not declare cascade-delete behavior.
 - startup performs a small SQLite migration that adds missing Phase 4 candidate profile columns; it does not yet provide versioned migration history.
+- Phase 6 matching results are calculated on demand and are not currently persisted.

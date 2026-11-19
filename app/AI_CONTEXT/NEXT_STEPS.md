@@ -52,11 +52,21 @@ Implemented and verified:
 - duplicate prevention by normalized URL or manual title/company/location hash
 - filters for title/company, location, work mode, skills, and experience
 
-## Phase 6: explainable job matching — next
+## Phase 6: explainable job matching — complete
 
-1. Define a compatibility result tied to a candidate and job.
-2. Extract or compare candidate skills and job required skills.
-3. Calculate a transparent weighted score based on skills, experience, location/work mode, and preferences.
-4. List matched skills and missing requirements.
-5. Require human review before any consequential application or resume action.
-6. Add focused tests for scoring and explanation boundaries.
+Implemented and verified:
+
+- deterministic candidate-to-job compatibility scores
+- skill, experience, location, work-mode, and preferred-role components
+- matched and missing skill lists
+- ranked Jobs page results with expandable explanations
+- exact and boundary tests for scoring, missing profile data, fallback skills, and ranking
+
+## Phase 7: AI resume tailoring — next
+
+1. Select an approved candidate profile and one stored job.
+2. Generate review-only resume improvement suggestions using local Ollama.
+3. Prohibit fabricated experience, skills, credentials, or dates.
+4. Produce a job-specific resume draft as separate generated text or a document.
+5. Preserve the original resume and require explicit human approval before saving or exporting a tailored version.
+6. Add tests for profile-only facts, hallucination boundaries, draft persistence, and approval.

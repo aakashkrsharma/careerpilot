@@ -26,6 +26,7 @@ This document distinguishes the project handoff's intended principles from choic
 - Candidate experience, skills, education, and job preferences are stored as candidate profile columns. Text fields are used for roles, locations, skills, and work modes instead of normalized related tables for this MVP foundation.
 - Job discovery starts with manual or pasted local records. CareerPilot does not scrape job sites or submit applications, avoiding uncertain source terms and preserving local-first behavior.
 - Job duplicates use normalized source URLs or a stable hash of title, company, and location for manual entries without URLs.
+- Phase 6 compatibility scores are deterministic and explainable. Matching does not infer or fabricate candidate information.
 - Existing SQLite databases receive missing candidate profile columns during startup. The migration is intentionally small and local; a versioned migration framework is not added until the schema grows.
 - Existing candidate profile values are preserved by default; replacing populated values requires explicit confirmation.
 - `requirements.txt` is the canonical pinned runtime dependency list and was verified in the existing Python 3.14.4 environment.

@@ -31,7 +31,7 @@ The initial source/dependency audit and Phase 1 of the Resume Processing Pipelin
 
 ## Tests and dependencies
 
-- Seventeen `unittest` cases cover the resume pipeline, profile/preferences, SQLite migration, and local job storage/deduplication/filtering.
+- Twenty-two `unittest` cases cover the resume pipeline, profile/preferences, SQLite migration, local job storage/deduplication/filtering, and explainable matching.
 - `requirements.txt` is the sole pinned runtime manifest. It includes Streamlit, SQLAlchemy, Pydantic, pandas, Ollama, HTTPX, PyPDF2, python-docx, and email-validator.
 - Existing-environment checks and a clean Python 3.14.4 virtualenv install from `requirements.txt` pass; `pip check` and imports pass in both.
 - A live browser run using local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume verified upload, extraction, review approval, and approved data on the Dashboard in an isolated temporary database.
@@ -65,3 +65,7 @@ Candidate profiles now include structured experience, skills, education, years o
 ## Phase 5 conclusion
 
 The app now provides local job storage and filtering. Users can manually add jobs or paste source metadata and descriptions. Source URLs are normalized, tracking parameters are removed, duplicate URLs or manual title/company/location combinations are rejected, and stored jobs can be filtered by title/company, location, work mode, skills, and experience. No external job source is scraped automatically.
+
+## Phase 6 conclusion
+
+The Jobs page ranks locally stored jobs for the selected candidate and explains the result. Compatibility uses deterministic components: skills up to 50 points, experience up to 20, location up to 15, work mode up to 10, and preferred role up to 5. The result lists matched and missing skills and exposes each component reason. Matching uses stored profile and job facts only.

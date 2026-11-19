@@ -31,3 +31,17 @@ class Job(JobBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class JobMatchResult(BaseModel):
+    candidate_id: int
+    job_id: int
+    total_score: int
+    skill_score: int
+    experience_score: int
+    location_score: int
+    work_mode_score: int
+    role_score: int
+    matched_skills: list[str]
+    missing_skills: list[str]
+    explanation: list[str]
