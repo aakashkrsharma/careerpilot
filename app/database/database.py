@@ -6,6 +6,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import inspect, text
 import os
+from pathlib import Path
+from alembic import command
+from alembic.config import Config
 
 # Create database engine
 DATABASE_URL = "sqlite:///./careerpilot.db"
@@ -31,6 +34,15 @@ def init_db():
     from .models import Base
     Base.metadata.create_all(bind=engine)
     _migrate_candidate_profile_columns()
+    _run_alembic_migrations()
+
+
+def _run_alembic_migrations():
+    """Upgrade the SQLite schema to the latest repository migration."""
+    project_root = Path(__file__).resolve().parents[2]
+    config = Config(str(project_root / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", DATABASE_URL)
+    command.upgrade(config, "head")
 
 
 def _migrate_candidate_profile_columns():

@@ -12,3 +12,6 @@ python-docx==1.2.0
 
 # Required by Pydantic EmailStr schemas
 email-validator==2.4.0
+
+# Database migrations
+alembic==1.20.1

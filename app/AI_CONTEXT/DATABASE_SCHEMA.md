@@ -2,7 +2,7 @@
 
 ## Overview
 
-CareerPilot defines six SQLAlchemy tables in a local SQLite database: candidates, resumes, extracted information, extraction history, jobs, and tailored resumes.
+CareerPilot defines core candidate, resume, job, tailoring, application, and answer-bank tables in a local SQLite database. Phase 8 adds permanent application and clarification history.
 
 ## Database location
 
@@ -40,6 +40,118 @@ Represents the user/candidate profile being reviewed.
 | `minimum_salary` | Integer | optional minimum desired salary |
 | `created_at` | DateTime | default UTC now |
 | `updated_at` | DateTime | auto-updated |
+
+## Phase 8 tables
+
+### 7. `applications`
+
+Permanent candidate/job application history; rows are never purged as part of discovery or batching.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer (PK) | primary key |
+| `candidate_id` | Integer (FK) | candidate owner |
+| `job_id` | Integer (FK) | discovered or manually stored job |
+| `tailored_resume_id` | Integer (FK) | optional approved tailored resume |
+| `application_batch_id` | Integer (FK) | optional batch selection |
+| `dedup_key` | String | permanent candidate/job/source identity |
+| `source` | String | discovery source |
+| `source_url` | String | normalized canonical URL |
+| `source_external_id` | String | optional source-specific ID |
+| `status` | String | discovered, tailored, needs clarification, ready, submitted, applied, or terminal status |
+| `execution_mode` | String | automatic, manual, or not started |
+| `match_score` | Integer | optional ranking snapshot |
+| `match_stage` | String | strict or progressive-relaxation stage |
+| `selected_rank` | Integer | rank inside a batch |
+| `discovered_at` | DateTime | discovery or manual-entry timestamp |
+| `tailored_at` | DateTime | tailoring completion timestamp |
+| `clarification_at` | DateTime | clarification pause timestamp |
+| `ready_at` | DateTime | approved preparation timestamp |
+| `submitted_at` | DateTime | successful or attempted submission timestamp |
+| `applied_at` | DateTime | candidate-confirmed permanent application timestamp |
+| `follow_up_at` | DateTime | optional follow-up timestamp |
+| `external_application_id` | String | optional source confirmation ID |
+| `manual_instructions` | Text | CAPTCHA/manual guidance |
+| `notes` | Text | candidate notes |
+| `error_message` | Text | safe final execution error |
+| `created_at` | DateTime | permanent creation time |
+| `updated_at` | DateTime | status-update time |
+
+Unique constraint: `(candidate_id, dedup_key)`.
+
+### 8. `candidate_answer_bank`
+
+Approved reusable answers for application screening questions.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer (PK) | primary key |
+| `candidate_id` | Integer (FK) | candidate owner |
+| `canonical_key` | String | normalized answer key |
+| `aliases` | Text | optional comma/newline-separated question aliases |
+| `answer_text` | Text | approved answer |
+| `scope` | String | global, role, company, source, or job |
+| `scope_value` | String | scope identifier; global uses a stable empty value |
+| `sensitivity` | String | normal, sensitive, or high_stakes |
+| `is_approved` | Boolean | explicit human approval |
+| `source_application_id` | Integer (FK) | optional origin application |
+| `approved_at` | DateTime | approval timestamp |
+| `expires_at` | DateTime | optional expiry |
+| `created_at` | DateTime | creation timestamp |
+| `updated_at` | DateTime | update timestamp |
+
+Unique constraint: `(candidate_id, canonical_key, scope, scope_value)`.
+
+### 9. `application_batches`
+
+A snapshot of progressive batch selection.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer (PK) | primary key |
+| `candidate_id` | Integer (FK) | candidate owner |
+| `requested_count` | Integer | requested maximum, capped at 20 |
+| `selected_count` | Integer | actual selected count |
+| `matching_threshold` | Integer | initial strict threshold |
+| `relaxation_stages` | Text | ordered relaxation stages |
+| `status` | String | draft, approved, processing, completed, or cancelled |
+| `approved_at` | DateTime | candidate batch approval |
+| `created_at` | DateTime | creation timestamp |
+| `updated_at` | DateTime | update timestamp |
+
+### 10. `clarification_requests`
+
+Captures missing or high-stakes screening questions.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer (PK) | primary key |
+| `application_id` | Integer (FK) | application requiring clarification |
+| `canonical_key` | String | normalized question key |
+| `question_text` | Text | original question |
+| `proposed_answer` | Text | inferred draft, never silently approved |
+| `candidate_answer` | Text | approved candidate response |
+| `category` | String | salary, work authorization, notice period, and others |
+| `sensitivity` | String | normal, sensitive, or high_stakes |
+| `save_to_answer_bank` | Boolean | requested reusable-answer preference |
+| `is_resolved` | Boolean | resolution state |
+| `resolved_at` | DateTime | resolution timestamp |
+| `created_at` | DateTime | creation timestamp |
+
+### 11. `application_status_events`
+
+Immutable audit history for application transitions.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer (PK) | primary key |
+| `application_id` | Integer (FK) | related application |
+| `from_status` | String | previous status |
+| `to_status` | String | new status |
+| `actor` | String | system, candidate, or connector |
+| `reason` | Text | human-readable transition reason |
+| `metadata_json` | Text | safe structured details |
+| `created_at` | DateTime | event timestamp |
 
 ### 2. `resumes`
 

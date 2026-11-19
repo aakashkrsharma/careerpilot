@@ -28,6 +28,12 @@ This document distinguishes the project handoff's intended principles from choic
 - Job duplicates use normalized source URLs or a stable hash of title, company, and location for manual entries without URLs.
 - Phase 6 compatibility scores are deterministic and explainable. Matching does not infer or fabricate candidate information.
 - Resume tailoring uses the verified candidate profile and optional original resume text. It generates separate drafts and does not modify originals or candidate profile values. Export requires explicit approval.
+- Phase 8 application records are permanent. Discovery and batching never purge application history.
+- Duplicate identity uses candidate ID plus a normalized source URL or a source/company/title/location hash.
+- Answer-bank uniqueness is `(candidate_id, canonical_key, scope, scope_value)` so global and company-specific answers coexist.
+- Sensitive and high-stakes answers require explicit candidate approval, and high-stakes role-specific values may require a new approval even for a matching key.
+- CAPTCHA solving, authentication credential collection, and automatic submission through protected walls are prohibited.
+- Manual execution guidance is permitted only as deterministic instructions, and candidate confirmation is required before `Applied`.
 - Existing SQLite databases receive missing candidate profile columns during startup. The migration is intentionally small and local; a versioned migration framework is not added until the schema grows.
 - Existing candidate profile values are preserved by default; replacing populated values requires explicit confirmation.
 - `requirements.txt` is the canonical pinned runtime dependency list and was verified in the existing Python 3.14.4 environment.

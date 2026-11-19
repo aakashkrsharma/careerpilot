@@ -31,7 +31,7 @@ The initial source/dependency audit and Phase 1 of the Resume Processing Pipelin
 
 ## Tests and dependencies
 
-- Twenty-seven `unittest` cases cover resume processing, profile/preferences, SQLite migration, local jobs, explainable matching, and review-only resume tailoring.
+- Thirty-four `unittest` cases cover resume processing, profile/preferences, SQLite migration, local jobs, explainable matching, review-only resume tailoring, and Phase 8 application/answer-bank foundations.
 - `requirements.txt` is the sole pinned runtime manifest. It includes Streamlit, SQLAlchemy, Pydantic, pandas, Ollama, HTTPX, PyPDF2, python-docx, and email-validator.
 - Existing-environment checks and a clean Python 3.14.4 virtualenv install from `requirements.txt` pass; `pip check` and imports pass in both.
 - A live browser run using local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume verified upload, extraction, review approval, and approved data on the Dashboard in an isolated temporary database.
@@ -73,3 +73,9 @@ The Jobs page ranks locally stored jobs for the selected candidate and explains 
 ## Phase 7 conclusion
 
 The app now generates local, job-specific resume drafts for a candidate and target job. Drafts use candidate profile facts and optional original resume text, retain the prompt and raw Ollama response, and remain pending until human review and approval. User-edited drafts can be approved and exported as plain text under `data/tailored_resumes/`; original resume files and candidate profile values are not overwritten by tailoring.
+
+## Phase 8 architecture
+
+Phase 8 will add permanent application history, a scoped/approved candidate answer bank, batch and clarification workflows, a modular source connector interface, and a compliant execution engine. Application records are permanent and define duplicate identity across discovery runs and days. Answer-bank uniqueness is `(candidate_id, canonical_key, scope, scope_value)`. Automatic submission will require source safety checks and explicit approval; CAPTCHA/authentication walls switch to manual guidance.
+
+The first Phase 8 slice is implemented: versioned Alembic migrations, permanent application and answer-bank models, scoped answer resolution and approval, application status transitions and audit events, and permanent duplicate prevention.

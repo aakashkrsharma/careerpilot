@@ -75,11 +75,27 @@ Implemented and verified:
 - text download and local export only after approval
 - tests for malformed output, placeholders, scoping, approval, and export
 
-## Phase 8: application management — next
+## Phase 8: application management — first slice complete
 
-1. Define application records linked to a candidate and stored job.
-2. Add application status, applied date, follow-up date, and notes.
-3. Prepare application materials only after human selection and approval.
-4. Keep submission actions manual; never submit or communicate externally without explicit approval.
-5. Add application-history and status-filter views to the Dashboard.
-6. Add tests for duplicate applications, status transitions, approval boundaries, and dashboard summaries.
+Implemented and verified:
+
+1. Versioned SQLite migrations for applications, answer bank, batches, clarification requests, and status events.
+2. Permanent application and answer-bank models with the approved scoped uniqueness constraint.
+3. Answer resolution, scope precedence, sensitivity, expiry, and explicit approval.
+4. Permanent duplicate detection using normalized URLs and candidate/source/title/company/location identity.
+5. ApplicationService and transition validation for the core status machine.
+6. AnswerBankService and integration tests for reuse and scoped coexistence.
+7. Tests for duplicate prevention across source labels, manual and URL representations, status events, and migration constraints.
+
+Second slice:
+
+1. Add batch selection snapshots and progressive relaxed matching up to 20 jobs.
+2. Add clarification requests and a clarification queue.
+3. Add application preparation and manual-safe execution adapters.
+4. Add source connector protocol and normalized discovery contract.
+
+Later slices:
+
+1. Integrate permitted source collectors.
+2. Add safe automatic executors only after source-specific approval.
+3. Extend dashboard and interview/application tracking.

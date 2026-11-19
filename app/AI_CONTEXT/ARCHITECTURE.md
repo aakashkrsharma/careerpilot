@@ -24,6 +24,10 @@ CareerPilot uses a simple layered architecture centered on a Streamlit frontend 
 │ - JobService                 │
 │ - MatchingService            │
 │ - TailoringService           │
+│ - ApplicationService         │
+│ - AnswerBankService          │
+│ - SourceConnector interface  │
+│ - ExecutionEngine interface  │
 └──────────────┬───────────────┘
                │ reads/writes
                ▼
@@ -120,6 +124,28 @@ Responsibilities:
 - allows human editing and explicit approval
 - exports only approved drafts to local text files
 
+### `ApplicationService`
+
+- creates permanent application records and permanent deduplication keys
+- validates and records application status transitions
+- records every status change as an immutable event
+- prepares applications only after candidate, job, tailored resume, and answer-bank approvals
+- keeps external submission separate from local preparation and history
+
+### `AnswerBankService`
+
+- stores approved reusable answers with scope and sensitivity metadata
+- resolves candidate profile facts, job/company/source-scoped answers, and global answers
+- requires explicit approval for sensitive and high-stakes answers
+- never stores passwords, OTPs, cookies, authentication tokens, or identity-document secrets
+
+### Future source and execution contracts
+
+- `JobSourceConnector` discovers and normalizes jobs without owning application history or browser execution
+- `ApplicationExecutor` declares whether a source can safely prepare or submit
+- `ApplicationExecutor` must detect authentication walls and CAPTCHAs and fall back to manual guidance
+- automatic submission requires source capability, complete approved preparation, clarification resolution, and explicit candidate submission approval
+
 ## UI layer
 
 Location: `app/ui/`
@@ -166,6 +192,14 @@ Location: `app/ui/`
 - generates a local Ollama draft
 - lets the user edit draft text, suggestions, and limitations
 - requires explicit approval before disk export or download
+
+### Planned Phase 8 UI
+
+- batch review and up-to-20-job selection
+- clarification queue for missing or high-stakes screening questions
+- application tracker with permanent status and audit history
+- manual application guidance and candidate completion confirmation
+- answer-bank review with scope and sensitivity markers
 
 ## Current data flow
 

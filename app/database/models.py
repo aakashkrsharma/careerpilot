@@ -174,6 +174,118 @@ class TailoredResume(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+class ApplicationBatch(Base):
+    __tablename__ = "application_batches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
+    requested_count = Column(Integer, nullable=False, default=20)
+    selected_count = Column(Integer, nullable=False, default=0)
+    matching_threshold = Column(Integer)
+    relaxation_stages = Column(Text)
+    status = Column(String, nullable=False, default="draft", index=True)
+    approved_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Application(Base):
+    __tablename__ = "applications"
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_id",
+            "dedup_key",
+            name="uq_application_candidate_dedup",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False, index=True)
+    tailored_resume_id = Column(Integer, ForeignKey("tailored_resumes.id"))
+    application_batch_id = Column(Integer, ForeignKey("application_batches.id"))
+    dedup_key = Column(String, nullable=False, index=True)
+    source = Column(String, nullable=False, default="manual", index=True)
+    source_url = Column(String)
+    source_external_id = Column(String)
+    status = Column(String, nullable=False, default="discovered", index=True)
+    execution_mode = Column(String, nullable=False, default="not_started")
+    match_score = Column(Integer)
+    match_stage = Column(String)
+    selected_rank = Column(Integer)
+    discovered_at = Column(DateTime)
+    tailored_at = Column(DateTime)
+    clarification_at = Column(DateTime)
+    ready_at = Column(DateTime)
+    submitted_at = Column(DateTime)
+    applied_at = Column(DateTime)
+    follow_up_at = Column(DateTime)
+    external_application_id = Column(String)
+    manual_instructions = Column(Text)
+    notes = Column(Text)
+    error_message = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CandidateAnswerBank(Base):
+    __tablename__ = "candidate_answer_bank"
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_id",
+            "canonical_key",
+            "scope",
+            "scope_value",
+            name="uq_answer_bank_candidate_key_scope",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
+    canonical_key = Column(String, nullable=False, index=True)
+    aliases = Column(Text)
+    answer_text = Column(Text, nullable=False)
+    scope = Column(String, nullable=False, default="global", index=True)
+    scope_value = Column(String, nullable=False, default="", index=True)
+    sensitivity = Column(String, nullable=False, default="normal")
+    is_approved = Column(Boolean, nullable=False, default=False)
+    source_application_id = Column(Integer, ForeignKey("applications.id"))
+    approved_at = Column(DateTime)
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ClarificationRequest(Base):
+    __tablename__ = "clarification_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False, index=True)
+    canonical_key = Column(String, nullable=False, index=True)
+    question_text = Column(Text, nullable=False)
+    proposed_answer = Column(Text)
+    candidate_answer = Column(Text)
+    category = Column(String)
+    sensitivity = Column(String, nullable=False, default="normal")
+    save_to_answer_bank = Column(Boolean, nullable=False, default=False)
+    is_resolved = Column(Boolean, nullable=False, default=False)
+    resolved_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ApplicationStatusEvent(Base):
+    __tablename__ = "application_status_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False, index=True)
+    from_status = Column(String)
+    to_status = Column(String, nullable=False)
+    actor = Column(String, nullable=False, default="system")
+    reason = Column(Text)
+    metadata_json = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 # Create all tables when this module is imported
 def init_db():
     """
