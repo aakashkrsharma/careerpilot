@@ -28,6 +28,7 @@ The first resume-processing pipeline is implemented as an early local prototype:
 - Candidate profiles include structured experience, skills, education, experience level, and job-search preferences. A dedicated profile page allows direct edits.
 - Jobs can be entered manually or pasted with source metadata, and are stored locally with URL normalization and duplicate prevention.
 - Jobs can be ranked against a candidate using transparent deterministic matching: skills, experience, location, work mode, and preferred roles.
+- Job-specific resume drafts can be generated locally, reviewed and edited by the user, approved, and exported as text without changing the original resume.
 
 ## Important constraints
 

@@ -10,6 +10,7 @@ from app.ui.review_page import show_review_page
 from app.ui.dashboard_page import show_dashboard_page
 from app.ui.profile_page import show_profile_page
 from app.ui.jobs_page import show_jobs_page
+from app.ui.tailoring_page import show_tailoring_page
 
 # Initialize database
 init_db()
@@ -36,6 +37,7 @@ page = st.sidebar.radio(
         "Dashboard",
         "Candidate Profile",
         "Jobs",
+        "Resume Tailoring",
         "Upload Resume",
         "Review Information",
     ],
@@ -48,6 +50,8 @@ elif page == "Candidate Profile":
     show_profile_page()
 elif page == "Jobs":
     show_jobs_page()
+elif page == "Resume Tailoring":
+    show_tailoring_page()
 elif page == "Upload Resume":
     show_upload_page()
 elif page == "Review Information":

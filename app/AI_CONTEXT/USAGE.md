@@ -31,6 +31,17 @@ When a candidate is selected on the Jobs page, stored jobs are ranked by a compa
 
 Open “Why this score” for a job to see the component explanations and matched/missing skills.
 
+## Resume tailoring
+
+1. Open Resume Tailoring.
+2. Select a candidate, target job, and optional original resume.
+3. Click Generate Draft.
+4. Review and edit the generated draft, suggestions, and limitations.
+5. Check “Approve this tailored resume,” then save the review.
+6. Download or save the approved draft as text.
+
+Original resumes and candidate profile values are not changed by tailoring. The model is instructed not to invent experience or skills, but every generated draft still requires human approval.
+
 ## Candidate profile
 
 1. Open Candidate Profile from the sidebar.

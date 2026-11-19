@@ -31,7 +31,7 @@ The initial source/dependency audit and Phase 1 of the Resume Processing Pipelin
 
 ## Tests and dependencies
 
-- Twenty-two `unittest` cases cover the resume pipeline, profile/preferences, SQLite migration, local job storage/deduplication/filtering, and explainable matching.
+- Twenty-seven `unittest` cases cover resume processing, profile/preferences, SQLite migration, local jobs, explainable matching, and review-only resume tailoring.
 - `requirements.txt` is the sole pinned runtime manifest. It includes Streamlit, SQLAlchemy, Pydantic, pandas, Ollama, HTTPX, PyPDF2, python-docx, and email-validator.
 - Existing-environment checks and a clean Python 3.14.4 virtualenv install from `requirements.txt` pass; `pip check` and imports pass in both.
 - A live browser run using local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume verified upload, extraction, review approval, and approved data on the Dashboard in an isolated temporary database.
@@ -69,3 +69,7 @@ The app now provides local job storage and filtering. Users can manually add job
 ## Phase 6 conclusion
 
 The Jobs page ranks locally stored jobs for the selected candidate and explains the result. Compatibility uses deterministic components: skills up to 50 points, experience up to 20, location up to 15, work mode up to 10, and preferred role up to 5. The result lists matched and missing skills and exposes each component reason. Matching uses stored profile and job facts only.
+
+## Phase 7 conclusion
+
+The app now generates local, job-specific resume drafts for a candidate and target job. Drafts use candidate profile facts and optional original resume text, retain the prompt and raw Ollama response, and remain pending until human review and approval. User-edited drafts can be approved and exported as plain text under `data/tailored_resumes/`; original resume files and candidate profile values are not overwritten by tailoring.

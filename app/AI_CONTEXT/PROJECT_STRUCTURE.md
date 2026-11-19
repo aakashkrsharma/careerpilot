@@ -26,10 +26,12 @@ careerpilot/
 │   │   ├── llm_service.py
 │   │   ├── job_service.py
 │   │   ├── matching_service.py
+│   │   ├── tailoring_service.py
 │   │   └── resume_service.py
 │   ├── ui/
 │   │   ├── dashboard_page.py
 │   │   ├── jobs_page.py
+│   │   ├── tailoring_page.py
 │   │   ├── profile_page.py
 │   │   ├── review_page.py
 │   │   └── upload_page.py

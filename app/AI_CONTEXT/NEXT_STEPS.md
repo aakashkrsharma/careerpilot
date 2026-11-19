@@ -62,11 +62,24 @@ Implemented and verified:
 - ranked Jobs page results with expandable explanations
 - exact and boundary tests for scoring, missing profile data, fallback skills, and ranking
 
-## Phase 7: AI resume tailoring — next
+## Phase 7: AI resume tailoring — complete
 
-1. Select an approved candidate profile and one stored job.
-2. Generate review-only resume improvement suggestions using local Ollama.
-3. Prohibit fabricated experience, skills, credentials, or dates.
-4. Produce a job-specific resume draft as separate generated text or a document.
-5. Preserve the original resume and require explicit human approval before saving or exporting a tailored version.
-6. Add tests for profile-only facts, hallucination boundaries, draft persistence, and approval.
+Implemented and verified:
+
+- local Ollama job-specific draft generation
+- strict JSON parsing and placeholder rejection
+- candidate/job/resume scoping
+- separate draft persistence with prompt and raw response
+- editable suggestions, limitations, and draft text
+- explicit review and approval timestamps
+- text download and local export only after approval
+- tests for malformed output, placeholders, scoping, approval, and export
+
+## Phase 8: application management — next
+
+1. Define application records linked to a candidate and stored job.
+2. Add application status, applied date, follow-up date, and notes.
+3. Prepare application materials only after human selection and approval.
+4. Keep submission actions manual; never submit or communicate externally without explicit approval.
+5. Add application-history and status-filter views to the Dashboard.
+6. Add tests for duplicate applications, status transitions, approval boundaries, and dashboard summaries.

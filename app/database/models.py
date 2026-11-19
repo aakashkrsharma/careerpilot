@@ -152,6 +152,28 @@ class Job(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+class TailoredResume(Base):
+    """A review-only, job-specific resume draft."""
+    __tablename__ = "tailored_resumes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False, index=True)
+    resume_id = Column(Integer, ForeignKey("resumes.id"))
+    draft_text = Column(Text, nullable=False)
+    suggestions = Column(Text)
+    limitations = Column(Text)
+    prompt_used = Column(Text)
+    llm_response = Column(Text)
+    is_reviewed = Column(Boolean, default=False)
+    is_approved = Column(Boolean, default=False)
+    exported_path = Column(String)
+    reviewed_at = Column(DateTime)
+    approved_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # Create all tables when this module is imported
 def init_db():
     """

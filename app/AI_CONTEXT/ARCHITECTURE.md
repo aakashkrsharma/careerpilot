@@ -23,6 +23,7 @@ CareerPilot uses a simple layered architecture centered on a Streamlit frontend 
 │ - ExtractionService          │
 │ - JobService                 │
 │ - MatchingService            │
+│ - TailoringService           │
 └──────────────┬───────────────┘
                │ reads/writes
                ▼
@@ -111,6 +112,14 @@ Responsibilities:
 - list matched and missing skills
 - rank jobs and provide human-readable explanations
 
+### `TailoringService`
+
+- builds an Ollama prompt from approved candidate facts and target-job facts
+- generates and validates a JSON resume draft
+- persists review state, prompt, and raw response separately
+- allows human editing and explicit approval
+- exports only approved drafts to local text files
+
 ## UI layer
 
 Location: `app/ui/`
@@ -150,6 +159,13 @@ Location: `app/ui/`
 - displays and filters locally stored jobs
 - links to a source URL when provided
 - ranks jobs for the selected candidate and explains compatibility
+
+### `tailoring_page.py`
+
+- selects a candidate, target job, and optional source resume
+- generates a local Ollama draft
+- lets the user edit draft text, suggestions, and limitations
+- requires explicit approval before disk export or download
 
 ## Current data flow
 

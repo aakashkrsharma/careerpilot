@@ -2,7 +2,7 @@
 
 ## Overview
 
-CareerPilot defines five SQLAlchemy tables in a local SQLite database: candidates, resumes, extracted information, extraction history, and jobs.
+CareerPilot defines six SQLAlchemy tables in a local SQLite database: candidates, resumes, extracted information, extraction history, jobs, and tailored resumes.
 
 ## Database location
 
@@ -122,6 +122,29 @@ Stores locally entered or imported job opportunities.
 | `salary_min` | Integer | optional minimum salary |
 | `salary_max` | Integer | optional maximum salary |
 | `posted_at` | DateTime | optional source posting date |
+| `created_at` | DateTime | default UTC now |
+| `updated_at` | DateTime | auto-updated |
+
+### 6. `tailored_resumes`
+
+Stores generated, reviewed, and approved job-specific resume drafts.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer (PK) | primary key |
+| `candidate_id` | Integer (FK) | references `candidates.id` |
+| `job_id` | Integer (FK) | references `jobs.id` |
+| `resume_id` | Integer (FK) | optional source resume |
+| `draft_text` | Text | editable generated resume text |
+| `suggestions` | Text | review suggestions |
+| `limitations` | Text | missing or uncertain areas |
+| `prompt_used` | Text | local Ollama prompt |
+| `llm_response` | Text | raw model response |
+| `is_reviewed` | Boolean | default `False` |
+| `is_approved` | Boolean | default `False` |
+| `exported_path` | String | optional local export path |
+| `reviewed_at` | DateTime | optional |
+| `approved_at` | DateTime | optional |
 | `created_at` | DateTime | default UTC now |
 | `updated_at` | DateTime | auto-updated |
 
