@@ -2,7 +2,18 @@
 Database models for CareerPilot - Local-first AI Job Hunting Agent
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -193,10 +204,16 @@ class ApplicationBatch(Base):
 class Application(Base):
     __tablename__ = "applications"
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "uq_application_active_candidate_dedup",
             "candidate_id",
             "dedup_key",
-            name="uq_application_candidate_dedup",
+            unique=True,
+            sqlite_where=text(
+                "status IN "
+                "('discovered', 'tailored', 'needs_clarification', "
+                "'ready', 'submitted', 'manual_required')"
+            ),
         ),
     )
 

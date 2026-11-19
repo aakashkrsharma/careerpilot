@@ -2,7 +2,7 @@
 
 ## Current status
 
-The initial source/dependency audit and Phase 1 of the Resume Processing Pipeline were completed on 2026-11-18. The first end-to-end service workflow is implemented and covered by focused tests.
+Phases 1–8 are implemented in the local prototype. Phase 8 now includes permanent application history with configurable cooldowns, progressive batching, candidate clarification, extensible contracts, and manual-safe execution.
 
 ## Implemented
 
@@ -21,20 +21,27 @@ The initial source/dependency audit and Phase 1 of the Resume Processing Pipelin
 - A dedicated Candidate Profile page allows direct profile and job-preference edits.
 - SQLite startup adds the Phase 4 candidate columns to databases created by earlier versions.
 - Local job records support manual entry or pasted source metadata, normalized URLs, source-key deduplication, candidate/profile preference filters, and job detail display.
+- Phase 8 stores permanent application history and scoped approved screening answers. The default exact-job cooldown is 15 days; the default same-company/different-role cooldown is zero days.
+- A partial SQLite unique index blocks duplicate active applications without preventing a new record after the reapply cooldown.
+- Batch selection snapshots up to 20 available jobs across strict, adjacent-role, location/work-mode, experience, and fallback-score stages, using existing deterministic match facts only.
+- The Clarification Queue reuses eligible approved answers, pauses missing, ambiguous, and high-stakes questions, and saves candidate-approved answers transactionally to the selected answer-bank scope.
+- `JobSourceConnector` and `ApplicationExecutor` protocols define future extension points. The current executor is manual-only and explicitly hands off authentication, CAPTCHA, and submission steps to the candidate.
+- Batch Review, Clarification Queue, Application Tracker, and Dashboard application status summaries are available in Streamlit. Manual applications are marked `Applied` only after explicit candidate confirmation.
 
 ## Remaining limitations
 
 - Legacy `.doc` files are unsupported; upload accepts PDF, DOCX, and TXT.
 - The prototype is single-user. Candidate IDs scope candidate/resume/extraction operations; no account-level isolation exists.
 - Upload and LLM processing run synchronously in Streamlit.
-- Existing SQLite databases are not migrated automatically; `create_all()` only creates missing tables.
+- Screening questions must currently be entered by the candidate; external application-form parsing and automatic answer filling are not implemented.
+- No automated job-source collectors or automatic submission executors are enabled.
 
 ## Tests and dependencies
 
-- Thirty-four `unittest` cases cover resume processing, profile/preferences, SQLite migration, local jobs, explainable matching, review-only resume tailoring, and Phase 8 application/answer-bank foundations.
+- Forty-six `unittest` cases cover resume processing, profile/preferences, SQLite and Alembic migrations, local jobs, explainable matching, resume tailoring, cooldowns, progressive batches, clarification reuse, approval boundaries, and Streamlit UI smoke checks.
 - `requirements.txt` is the sole pinned runtime manifest. It includes Streamlit, SQLAlchemy, Pydantic, pandas, Ollama, HTTPX, PyPDF2, python-docx, and email-validator.
 - Existing-environment checks and a clean Python 3.14.4 virtualenv install from `requirements.txt` pass; `pip check` and imports pass in both.
-- A live browser run using local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume verified upload, extraction, review approval, and approved data on the Dashboard in an isolated temporary database.
+- The resume workflow was previously verified with local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume in an isolated temporary database. Phase 8 UI routes are smoke-tested with Streamlit `AppTest`; live portal behavior is intentionally not exercised.
 - Existing SQLAlchemy and PyPDF2 deprecation warnings remain.
 
 ## Project principles to preserve
@@ -74,8 +81,8 @@ The Jobs page ranks locally stored jobs for the selected candidate and explains 
 
 The app now generates local, job-specific resume drafts for a candidate and target job. Drafts use candidate profile facts and optional original resume text, retain the prompt and raw Ollama response, and remain pending until human review and approval. User-edited drafts can be approved and exported as plain text under `data/tailored_resumes/`; original resume files and candidate profile values are not overwritten by tailoring.
 
-## Phase 8 architecture
+## Phase 8 conclusion
 
-Phase 8 will add permanent application history, a scoped/approved candidate answer bank, batch and clarification workflows, a modular source connector interface, and a compliant execution engine. Application records are permanent and define duplicate identity across discovery runs and days. Answer-bank uniqueness is `(candidate_id, canonical_key, scope, scope_value)`. Automatic submission will require source safety checks and explicit approval; CAPTCHA/authentication walls switch to manual guidance.
+The core application-management workflow is implemented: versioned Alembic schema changes, permanent application rows, a configurable exact-job cooldown (15 days by default), zero-day same-company/different-role cooldown, and a partial unique index for active duplicates. Draft batches select up to 20 jobs through progressive relaxation and require candidate approval. Screening questions can reuse approved scoped answers or pause for clarification; saved answers are approved explicitly. The tracker supports manual handoff and requires candidate confirmation before recording `Applied`.
 
-The first Phase 8 slice is implemented: versioned Alembic migrations, permanent application and answer-bank models, scoped answer resolution and approval, application status transitions and audit events, and permanent duplicate prevention.
+The `JobSourceConnector` and `ApplicationExecutor` contracts are implemented, but no automated collectors or submission executors are enabled. Questions and job listings are currently supplied manually.

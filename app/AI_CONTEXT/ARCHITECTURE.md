@@ -12,6 +12,9 @@ CareerPilot uses a simple layered architecture centered on a Streamlit frontend 
 │  - Upload page              │
 │  - Review page              │
 │  - Dashboard page           │
+│  - Batch Review             │
+│  - Clarification Queue      │
+│  - Application Tracker      │
 └──────────────┬───────────────┘
                │ calls
                ▼
@@ -26,8 +29,10 @@ CareerPilot uses a simple layered architecture centered on a Streamlit frontend 
 │ - TailoringService           │
 │ - ApplicationService         │
 │ - AnswerBankService          │
-│ - SourceConnector interface  │
-│ - ExecutionEngine interface  │
+│ - BatchSelectionService      │
+│ - ClarificationQueueService  │
+│ - JobSourceConnector protocol│
+│ - ApplicationExecutor protocol│
 └──────────────┬───────────────┘
                │ reads/writes
                ▼
@@ -60,6 +65,7 @@ Location: `app/database/`
 - database is SQLite by default (`careerpilot.db`)
 - data is stored locally in a single file
 - SQLAlchemy sessions are scoped to service operations and closed after the transaction completes
+- baseline tables are created first; Alembic owns the Phase 8 application schema and startup upgrades to `head`
 
 ## Service layer
 
@@ -126,10 +132,13 @@ Responsibilities:
 
 ### `ApplicationService`
 
-- creates permanent application records and permanent deduplication keys
+- retains all application records and enforces a configurable 15-day exact-job reapply cooldown by default
+- uses a configurable company cooldown of zero days by default, allowing a different role at the same company immediately
+- prevents duplicate active applications with a SQLite partial unique index; cooldown checks remain service-level because SQLite indexes cannot express a time-relative rule
 - validates and records application status transitions
 - records every status change as an immutable event
-- prepares applications only after candidate, job, tailored resume, and answer-bank approvals
+- requires batch approval before progressing a batched application
+- requires explicit candidate confirmation before setting an application to `applied`
 - keeps external submission separate from local preparation and history
 
 ### `AnswerBankService`
@@ -139,13 +148,27 @@ Responsibilities:
 - requires explicit approval for sensitive and high-stakes answers
 - never stores passwords, OTPs, cookies, authentication tokens, or identity-document secrets
 
-### Future source and execution contracts
+### `BatchSelectionService`
 
-- `JobSourceConnector` discovers and normalizes jobs without owning application history or browser execution
-- `ApplicationExecutor` declares whether a source can safely prepare or submit
-- `ApplicationExecutor` must detect authentication walls and CAPTCHAs and fall back to manual guidance
-- automatic submission requires source capability, complete approved preparation, clarification resolution, and explicit candidate submission approval
+- selects and snapshots up to 20 available jobs by strict match, adjacent role, location/work-mode relaxation, experience relaxation, then a configurable fallback score
+- ranks within each stage by the existing deterministic match score and matched-skill count
+- excludes active applications and exact-job or company cooldown matches using `ApplicationService`
+- creates draft batches that require explicit candidate approval before application preparation; cancelling a draft releases active identities without deleting history
 
+### `ClarificationQueueService`
+
+- assesses supplied screening questions against approved answer-bank entries
+- reuses approved non-high-stakes answers when the question is not marked ambiguous
+- queues missing, ambiguous, and high-stakes answers; high-stakes entries always require fresh candidate review
+- stores candidate-approved answers and their selected scope in the answer bank in the same transaction as resolving the question
+- moves applications to `needs_clarification` and allows `ready` only after all requests are resolved
+
+### Extension contracts and safe execution
+
+- `JobSourceConnector` returns normalized `SourceJob` records from a `JobDiscoveryCriteria`; it does not persist jobs or application history
+- `ApplicationExecutor` receives an application, job, and explicit candidate approval and returns a typed execution result
+- `ManualApplicationExecutor` always hands off to the candidate; it never signs in, solves CAPTCHAs, or submits forms
+- no concrete automated source collectors or submission executors are implemented yet
 ## UI layer
 
 Location: `app/ui/`
@@ -193,13 +216,12 @@ Location: `app/ui/`
 - lets the user edit draft text, suggestions, and limitations
 - requires explicit approval before disk export or download
 
-### Planned Phase 8 UI
+### Phase 8 UI
 
-- batch review and up-to-20-job selection
-- clarification queue for missing or high-stakes screening questions
-- application tracker with permanent status and audit history
-- manual application guidance and candidate completion confirmation
-- answer-bank review with scope and sensitivity markers
+- `batch_review_page.py`: reviews match stage, score, and job details; requires approval of draft batches
+- `clarification_queue_page.py`: accepts screening questions, displays reused answers, and records explicitly approved clarifications
+- `application_tracker_page.py`: displays permanent history, links approved tailored resumes, prepares manual handoffs, and confirms completion
+- `dashboard_page.py`: summarizes application, clarification, ready, and applied counts
 
 ## Current data flow
 
@@ -209,6 +231,9 @@ Location: `app/ui/`
 4. `ExtractionService` persists valid output as pending review and marks the resume processed.
 5. The review page saves corrections and approval status in one database transaction.
 6. Approved fields update empty profile values; replacing populated values requires explicit reviewer confirmation.
+7. Batch Review stores up to 20 selected application records as a draft snapshot; application status progression requires batch approval.
+8. The Clarification Queue reuses eligible approved answers or pauses on unresolved questions; a resolved answer can be saved atomically to the answer bank.
+9. The Application Tracker moves prepared work to a manual handoff; only an explicit candidate confirmation records `applied`.
 
 ## Runtime assumptions
 
@@ -224,6 +249,9 @@ This architecture is intentionally lightweight and assumes a single local user. 
 - no service isolation or horizontal scaling
 - no background retries or rate limiting
 - no formal API boundary between the UI and backend
+- screening questions must be supplied manually; form extraction and automatic filling are not implemented
+- job-source protocols are extension points only; no automated collectors are enabled
+- application execution is manual-only; no automated submission adapter is enabled
 
 ## Security and robustness notes
 

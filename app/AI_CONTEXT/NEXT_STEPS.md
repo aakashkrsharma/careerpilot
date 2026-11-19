@@ -75,27 +75,27 @@ Implemented and verified:
 - text download and local export only after approval
 - tests for malformed output, placeholders, scoping, approval, and export
 
-## Phase 8: application management — first slice complete
+## Phase 8: application management — core workflow complete
 
-Implemented and verified:
+Implemented:
 
-1. Versioned SQLite migrations for applications, answer bank, batches, clarification requests, and status events.
-2. Permanent application and answer-bank models with the approved scoped uniqueness constraint.
-3. Answer resolution, scope precedence, sensitivity, expiry, and explicit approval.
-4. Permanent duplicate detection using normalized URLs and candidate/source/title/company/location identity.
-5. ApplicationService and transition validation for the core status machine.
-6. AnswerBankService and integration tests for reuse and scoped coexistence.
-7. Tests for duplicate prevention across source labels, manual and URL representations, status events, and migration constraints.
+1. Alembic migrations for application history and the active-only duplicate index; startup creates baseline tables before applying versioned Phase 8 migrations.
+2. Permanent application rows with a default 15-day exact-job cooldown and configurable same-company/different-role cooldown (zero days by default).
+3. Up-to-20-job batch snapshots with strict, adjacent-role, location/work-mode, experience, and fallback-score relaxation.
+4. Candidate-approved answer reuse and a clarification queue for missing, ambiguous, and high-stakes questions.
+5. Candidate-approved, scoped answer-bank persistence and explicit `Applied` confirmation.
+6. `JobSourceConnector` and `ApplicationExecutor` protocols, plus a manual-only adapter that hands off login, CAPTCHA, and submission steps.
+7. Batch Review, Clarification Queue, Application Tracker, and Dashboard status summaries.
+8. Integration tests for 14/16-day cooldown behavior, company cooldown configuration, progressive batch size/stages, clarification reuse, approval boundaries, migration preservation, and UI smoke behavior.
 
-Second slice:
+Current Phase 8 boundaries:
 
-1. Add batch selection snapshots and progressive relaxed matching up to 20 jobs.
-2. Add clarification requests and a clarification queue.
-3. Add application preparation and manual-safe execution adapters.
-4. Add source connector protocol and normalized discovery contract.
+- Job listings and screening questions are entered manually; no portal collectors, external-form extraction, or automatic form filling are enabled.
+- The executor is manual-only; no automatic submission is enabled.
 
-Later slices:
+## Next development phase
 
-1. Integrate permitted source collectors.
-2. Add safe automatic executors only after source-specific approval.
-3. Extend dashboard and interview/application tracking.
+1. Select one permitted job source and implement a source-specific connector that returns normalized records through `JobSourceConnector`; verify source terms and access constraints before enabling it.
+2. Add source-specific question intake only where permitted, retaining candidate review before answer reuse or submission.
+3. Consider an automated executor only for a source with explicit permission, safe handling of authentication/CAPTCHA boundaries, and end-to-end approval tests.
+4. Continue with interview preparation after the discovery and application workflow is exercised with real candidate-managed listings.

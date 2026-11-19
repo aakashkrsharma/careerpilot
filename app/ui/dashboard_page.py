@@ -5,6 +5,8 @@ import streamlit as st
 from app.services.candidate_service import candidate_service
 from app.services.resume_service import resume_service
 from app.database.models import Candidate, Resume, ExtractedInfo
+from app.services.application_service import application_service
+from app.services.clarification_queue_service import clarification_queue_service
 
 def show_dashboard_page():
     """Display the dashboard page with candidate information"""
@@ -123,6 +125,23 @@ def show_dashboard_page():
                 st.write("---")
         else:
             st.info("No extracted information for this candidate.")
+
+        st.markdown("### Application Status")
+        status_counts = application_service.get_status_counts(candidate_id)
+        unresolved_count = len(clarification_queue_service.get_queue(candidate_id))
+        total_applications = sum(status_counts.values())
+        columns = st.columns(4)
+        columns[0].metric("Applications", total_applications)
+        columns[1].metric(
+            "Needs Clarification",
+            status_counts.get("needs_clarification", 0),
+        )
+        columns[2].metric("Ready", status_counts.get("ready", 0))
+        columns[3].metric("Applied", status_counts.get("applied", 0))
+        st.caption(
+            f"Unresolved screening questions: {unresolved_count}. "
+            "Application records are retained permanently."
+        )
 
 # Initialize the page when imported
 if __name__ == "__main__":

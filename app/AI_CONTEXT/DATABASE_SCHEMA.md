@@ -77,7 +77,16 @@ Permanent candidate/job application history; rows are never purged as part of di
 | `created_at` | DateTime | permanent creation time |
 | `updated_at` | DateTime | status-update time |
 
-Unique constraint: `(candidate_id, dedup_key)`.
+There is no lifetime unique constraint on `(candidate_id, dedup_key)`. A partial
+unique index, `uq_application_active_candidate_dedup`, covers that pair only while
+status is `discovered`, `tailored`, `needs_clarification`, `ready`, `submitted`, or
+`manual_required`. Historical application rows remain stored.
+
+The service blocks the same exact job for 15 days after `applied_at` (falling
+back to `submitted_at` when no application confirmation timestamp exists).
+Reapplication is allowed after that window and creates a new row. The default
+same-company/different-role cooldown is zero days. Both values are configurable
+in `ApplicationService` and batch selection.
 
 ### 8. `candidate_answer_bank`
 
@@ -119,6 +128,10 @@ A snapshot of progressive batch selection.
 | `created_at` | DateTime | creation timestamp |
 | `updated_at` | DateTime | update timestamp |
 
+Batch selection snapshots the selected job ordering, score, and relaxation stage
+on their related `applications` rows. A draft batch must be explicitly approved
+before its applications can progress.
+
 ### 10. `clarification_requests`
 
 Captures missing or high-stakes screening questions.
@@ -137,6 +150,10 @@ Captures missing or high-stakes screening questions.
 | `is_resolved` | Boolean | resolution state |
 | `resolved_at` | DateTime | resolution timestamp |
 | `created_at` | DateTime | creation timestamp |
+
+Resolved candidate answers may be written to `candidate_answer_bank` with the
+candidate-selected scope. High-stakes answers are always paused for fresh
+candidate confirmation even if a reusable answer exists.
 
 ### 11. `application_status_events`
 
@@ -264,6 +281,10 @@ Stores generated, reviewed, and approved job-specific resume drafts.
 
 - `Candidate` has many `Resume` rows
 - `Candidate` has many `ExtractedInfo` rows
+- `Candidate` has many application batches, applications, and answer-bank entries
+- `ApplicationBatch` groups candidate application snapshots
+- `Application` links a candidate, job, optional batch, optional tailored resume, status events, and clarification requests
+- `ClarificationRequest` and `CandidateAnswerBank` optionally reference the source application
 - each `Resume` can have one or more corresponding `ExtractedInfo` records
 - `ExtractionHistory` links attempts back to a candidate and resume
 - `Job` records are local opportunities and are not currently linked to a candidate
@@ -271,10 +292,11 @@ Stores generated, reviewed, and approved job-specific resume drafts.
 ## Notes
 
 - the database is intentionally simple and local-first
-- there are no complex indexes or migration scripts yet
+- Alembic migrations version the Phase 8 application tables and cooldown index. Startup creates baseline tables, applies the legacy candidate-profile column additions, then upgrades Alembic to `head`.
+- The partial unique index prevents simultaneous active duplicates; elapsed-time cooldown checks remain in the service layer.
 - the schema is designed for a prototype workflow rather than enterprise-scale data processing
 - `Resume.is_processed` remains `False` until valid extraction data is persisted for review.
 - `ExtractedInfo` rows are initially pending (`is_reviewed=False`, `is_approved=False`) and store the prompt and raw model response.
 - ORM foreign keys do not declare cascade-delete behavior.
-- startup performs a small SQLite migration that adds missing Phase 4 candidate profile columns; it does not yet provide versioned migration history.
+- startup adds missing Phase 4 candidate profile columns for older local databases; those legacy additions predate the Alembic migration history.
 - Phase 6 matching results are calculated on demand and are not currently persisted.

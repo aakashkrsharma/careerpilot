@@ -6,11 +6,19 @@ from unittest.mock import patch
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.database.models import Base
+from app.database.models import (
+    Base,
+    Candidate,
+    ExtractionHistory,
+    ExtractedInfo,
+    Job,
+    Resume,
+    TailoredResume,
+)
 
 
 class ApplicationPhase8Tests(unittest.TestCase):
@@ -190,7 +198,7 @@ class ApplicationPhase8Tests(unittest.TestCase):
         )
         self.assertIsNone(resolved)
 
-    def test_permanent_duplicate_prevents_repeat_across_source_and_days(self):
+    def test_active_duplicate_prevents_repeat_across_source_variants(self):
         candidate, job = self.create_candidate_and_job()
 
         first = self.application_service.create_application(
@@ -287,14 +295,38 @@ class ApplicationPhase8Tests(unittest.TestCase):
     def test_phase8_migration_creates_required_tables_and_constraints(self):
         project_root = Path(__file__).resolve().parents[1]
         migration_db = Path(self.temp_dir.name) / "phase8_migration.db"
+        migration_engine = create_engine(f"sqlite:///{migration_db}")
+        for table in (
+            Candidate.__table__,
+            Resume.__table__,
+            ExtractedInfo.__table__,
+            ExtractionHistory.__table__,
+            Job.__table__,
+            TailoredResume.__table__,
+        ):
+            table.create(migration_engine)
         config = Config(str(project_root / "alembic.ini"))
         config.set_main_option(
             "sqlalchemy.url",
             f"sqlite:///{migration_db}",
         )
+        command.upgrade(config, "0001_phase8")
+        with migration_engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO candidates (id, full_name, email) "
+                "VALUES (1, 'Migration Candidate', 'migration@example.com')"
+            ))
+            connection.execute(text(
+                "INSERT INTO jobs "
+                "(id, source, source_job_key, title, company) "
+                "VALUES (1, 'manual', 'migration-job', 'Engineer', 'Example')"
+            ))
+            connection.execute(text(
+                "INSERT INTO applications "
+                "(id, candidate_id, job_id, dedup_key, source, status, execution_mode) "
+                "VALUES (1, 1, 1, 'migration-key', 'manual', 'applied', 'manual')"
+            ))
         command.upgrade(config, "head")
-
-        migration_engine = create_engine(f"sqlite:///{migration_db}")
         inspector = inspect(migration_engine)
         for table_name in (
             "applications",
@@ -313,6 +345,27 @@ class ApplicationPhase8Tests(unittest.TestCase):
             "uq_answer_bank_candidate_key_scope",
             answer_constraints,
         )
+        application_constraints = {
+            constraint["name"]
+            for constraint in inspector.get_unique_constraints("applications")
+        }
+        self.assertNotIn(
+            "uq_application_candidate_dedup",
+            application_constraints,
+        )
+        application_indexes = {
+            index["name"]: index
+            for index in inspector.get_indexes("applications")
+        }
+        self.assertTrue(
+            application_indexes["uq_application_active_candidate_dedup"]["unique"]
+        )
+        with migration_engine.connect() as connection:
+            preserved = connection.execute(text(
+                "SELECT candidate_id, dedup_key, status FROM applications "
+                "WHERE id = 1"
+            )).one()
+        self.assertEqual(preserved, (1, "migration-key", "applied"))
         migration_engine.dispose()
 
 

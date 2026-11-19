@@ -24,22 +24,27 @@ This document distinguishes the project handoff's intended principles from choic
 - The app is single-user for the current prototype. Candidate IDs scope resume and extraction operations; account-level isolation and authentication are out of scope until multi-user support is requested.
 - Upload UI orchestration remains in the page because it coordinates existing services without duplicating core business rules; a separate pipeline abstraction is not currently justified.
 - Candidate experience, skills, education, and job preferences are stored as candidate profile columns. Text fields are used for roles, locations, skills, and work modes instead of normalized related tables for this MVP foundation.
-- Job discovery starts with manual or pasted local records. CareerPilot does not scrape job sites or submit applications, avoiding uncertain source terms and preserving local-first behavior.
+- Job discovery currently uses manual or pasted local records. `JobSourceConnector` defines the future normalized source contract; no source collectors are enabled.
 - Job duplicates use normalized source URLs or a stable hash of title, company, and location for manual entries without URLs.
 - Phase 6 compatibility scores are deterministic and explainable. Matching does not infer or fabricate candidate information.
 - Resume tailoring uses the verified candidate profile and optional original resume text. It generates separate drafts and does not modify originals or candidate profile values. Export requires explicit approval.
-- Phase 8 application records are permanent. Discovery and batching never purge application history.
-- Duplicate identity uses candidate ID plus a normalized source URL or a source/company/title/location hash.
+- Phase 8 application records are retained permanently. Discovery and batching never purge application history.
+- Exact-job reapplications are blocked for 15 days by default, using `applied_at` or (when unavailable) `submitted_at`; after the cooldown, a new history row is allowed.
+- Same-company/different-role reapplications have a zero-day cooldown by default. Both cooldowns are configurable in `ApplicationService` and batch selection.
+- A partial unique SQLite index prevents multiple active rows for the same candidate/dedup key. Time-based cooldowns remain service checks because they cannot be represented by a time-relative SQLite index.
+- Duplicate identity uses candidate ID plus a normalized source URL, external identity, or a stable title/company/location hash, with a compatibility check for manual and URL representations.
 - Answer-bank uniqueness is `(candidate_id, canonical_key, scope, scope_value)` so global and company-specific answers coexist.
 - Sensitive and high-stakes answers require explicit candidate approval, and high-stakes role-specific values may require a new approval even for a matching key.
-- CAPTCHA solving, authentication credential collection, and automatic submission through protected walls are prohibited.
-- Manual execution guidance is permitted only as deterministic instructions, and candidate confirmation is required before `Applied`.
-- Existing SQLite databases receive missing candidate profile columns during startup. The migration is intentionally small and local; a versioned migration framework is not added until the schema grows.
+- CAPTCHA solving, authentication credential collection, and submission through protected walls are prohibited.
+- The current `ManualApplicationExecutor` always provides candidate-controlled handoff instructions. Candidate confirmation is required before `Applied`.
+- Startup creates baseline tables, adds missing legacy candidate-profile columns, then runs Alembic migrations for Phase 8 schema changes. The partial active-duplicate index replaces lifetime uniqueness without deleting historical rows.
 - Existing candidate profile values are preserved by default; replacing populated values requires explicit confirmation.
 - `requirements.txt` is the canonical pinned runtime dependency list and was verified in the existing Python 3.14.4 environment.
 
 ## Remaining gaps
 
-- The SQLite migration is additive and not backed by versioned migration history.
+- Automated source collectors and source-specific execution adapters are not implemented.
+- Screening questions are entered manually; external form extraction and automatic answer filling are not implemented.
+- The single-user local prototype has no account authentication or user-level isolation.
 
 Do not treat unimplemented behavior or earlier aspirational documentation as a completed technical decision.

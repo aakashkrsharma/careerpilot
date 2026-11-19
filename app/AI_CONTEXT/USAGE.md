@@ -8,7 +8,9 @@ Start the app from the project root (the directory containing `app/` and `requir
 python -m streamlit run app/main.py
 ```
 
-The app has Dashboard, Candidate Profile, Jobs, Upload Resume, and Review Information pages.
+The app has Dashboard, Candidate Profile, Jobs, Resume Tailoring, Batch Review,
+Clarification Queue, Application Tracker, Upload Resume, and Review Information
+pages.
 
 ## Jobs
 
@@ -17,7 +19,9 @@ The app has Dashboard, Candidate Profile, Jobs, Upload Resume, and Review Inform
 3. Save the job. Duplicate URLs and duplicate manual title/company/location combinations are rejected.
 4. Use the filters to narrow local jobs by title/company, location, work mode, skills, and candidate experience.
 
-CareerPilot does not scrape or submit applications. Source URLs are manually supplied and only open when you choose.
+Job listings are currently entered manually; CareerPilot does not automatically
+collect jobs or submit applications. Source URLs are manually supplied and only
+open when you choose.
 
 ## Job matching
 
@@ -41,6 +45,39 @@ Open “Why this score” for a job to see the component explanations and matche
 6. Download or save the approved draft as text.
 
 Original resumes and candidate profile values are not changed by tailoring. The model is instructed not to invent experience or skills, but every generated draft still requires human approval.
+
+## Batch review and job selection
+
+1. Add job listings on the Jobs page and ensure the candidate profile has accurate skills and preferences.
+2. Open Batch Review, select a candidate, choose a maximum of 20 jobs, and set the strict and fallback score thresholds.
+3. Build the batch. Jobs are shown by selection stage and explainable match score; jobs with an active application or inside the exact-job cooldown are excluded.
+4. Review the listed opportunities and approve the batch before advancing its applications. Cancel a draft batch to release its active job identities; its history is retained.
+
+The selection stages relax criteria in order: strict match, adjacent role,
+location/work-mode, experience, then fallback score. The matcher uses stored
+candidate facts and never adds skills to the profile.
+
+## Clarification queue and answer reuse
+
+1. Open Clarification Queue and select an application from an approved batch.
+2. Enter each screening question and a stable canonical key when possible.
+3. The app reuses an approved answer when safe. Missing, ambiguous, and high-stakes questions are queued; high-stakes answers always require fresh confirmation.
+4. Enter the candidate's answer, confirm it is accurate, and optionally save it to the answer bank.
+5. Choose a scope for reuse. Company-, role-, source-, and job-specific answers can coexist with global answers.
+
+Questions are currently entered manually. CareerPilot does not read or fill
+external application forms.
+
+## Application tracker and manual handoff
+
+1. Open Application Tracker to review permanent application history and status.
+2. Link an approved tailored resume if one is available, then mark the application ready after reviewing its preparation.
+3. Choose Prepare Manual Handoff. CareerPilot provides steps but does not sign in, solve CAPTCHAs, or submit forms.
+4. Complete the application directly on the source site. Return to the tracker, check the completion confirmation, and mark Applied only after successful submission.
+
+Exact-job reapplication is blocked for 15 days by default. A different role at
+the same company is immediately eligible by default. Historical records are
+retained; a permitted reapplication creates a new application record.
 
 ## Candidate profile
 
@@ -73,10 +110,12 @@ Approved values fill empty candidate profile fields by default. To replace exist
 - SQLite database: `careerpilot.db` relative to the app's working directory
 - Original resume files: `data/resumes/`
 - Extracted resume text and review data: SQLite (`resumes` and `extracted_info`)
+- Jobs, applications, status events, clarification requests, and answer-bank entries: SQLite
 
 ## Current limitations
 
 - The model defaults to `llama3`; use `OLLAMA_MODEL` to select another installed model.
 - `OLLAMA_BASE_URL` configures the Ollama client and defaults to `http://localhost:11434`.
 - The app is local and single-user; candidate relationships do not provide account-level isolation.
+- Automated source collectors, application-form question extraction, automatic answer filling, and automatic submission are not enabled.
 - No REST API or export feature is implemented.
