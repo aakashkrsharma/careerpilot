@@ -17,6 +17,9 @@ The initial source/dependency audit and Phase 1 of the Resume Processing Pipelin
 - Empty candidate profile fields are filled after approval. Replacing populated values requires a separate explicit choice.
 - Dashboard resume lookup uses `CandidateService`, and successful upload directs users to the review/approval page.
 - Focused service integration tests with temporary SQLite and mocked Ollama, including configured Ollama host/model behavior.
+- Candidate profiles now store experience, skills, education, years of experience, preferred roles, preferred locations, work modes, and minimum salary.
+- A dedicated Candidate Profile page allows direct profile and job-preference edits.
+- SQLite startup adds the Phase 4 candidate columns to databases created by earlier versions.
 
 ## Remaining limitations
 
@@ -27,7 +30,7 @@ The initial source/dependency audit and Phase 1 of the Resume Processing Pipelin
 
 ## Tests and dependencies
 
-- Ten `unittest` cases cover PDF/DOCX/TXT extraction, invalid input, mocked Ollama success/failure and configuration, pending persistence, review/approval, no-overwrite behavior, candidate scoping, unique-email rollback, and dashboard resume display.
+- Twelve `unittest` cases cover PDF/DOCX/TXT extraction, invalid input, mocked Ollama success/failure and configuration, pending persistence, review/approval, no-overwrite behavior, candidate scoping, unique-email rollback, dashboard resume display, profile/preferences updates, and SQLite migration.
 - `requirements.txt` is the sole pinned runtime manifest. It includes Streamlit, SQLAlchemy, Pydantic, pandas, Ollama, HTTPX, PyPDF2, python-docx, and email-validator.
 - Existing-environment checks and a clean Python 3.14.4 virtualenv install from `requirements.txt` pass; `pip check` and imports pass in both.
 - A live browser run using local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume verified upload, extraction, review approval, and approved data on the Dashboard in an isolated temporary database.
@@ -53,3 +56,7 @@ The Ollama client uses the configured local host and model. The current product 
 ## Phase 3 conclusion
 
 The pinned dependencies install in a clean Python 3.14.4 virtual environment. The live synthetic resume flow was verified through Streamlit and local Ollama, including approval and Dashboard display. The user's existing database was not used or modified during this verification.
+
+## Phase 4 conclusion
+
+Candidate profiles now include structured experience, skills, education, years of experience, preferred roles, preferred locations, work modes, and minimum salary. A dedicated Candidate Profile page supports direct editing, and approved extraction data fills those profile fields. SQLite startup safely adds missing Phase 4 columns to existing databases. Profile update validation and migration behavior are covered by tests.

@@ -29,6 +29,9 @@ PROFILE_FIELDS = (
     "linkedin",
     "github",
     "summary",
+    "experience",
+    "skills",
+    "education",
 )
 
 

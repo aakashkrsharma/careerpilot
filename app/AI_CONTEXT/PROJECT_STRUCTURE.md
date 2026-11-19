@@ -26,6 +26,7 @@ careerpilot/
 │   │   └── resume_service.py
 │   ├── ui/
 │   │   ├── dashboard_page.py
+│   │   ├── profile_page.py
 │   │   ├── review_page.py
 │   │   └── upload_page.py
 │   └── AI_CONTEXT/
@@ -75,6 +76,7 @@ Contains the end-user screens:
 - `upload_page.py`: process resume uploads
 - `review_page.py`: adjust and approve extracted fields
 - `dashboard_page.py`: view summary and details
+- `profile_page.py`: edit candidate profile and job preferences
 
 ### `data/resumes/`
 

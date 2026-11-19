@@ -67,6 +67,7 @@ Responsibilities:
 - list all candidates
 - update candidate fields
 - retrieve a candidate's resumes and extracted info
+- update structured profile and job-preference fields
 
 ### `ResumeService`
 
@@ -119,6 +120,13 @@ Location: `app/ui/`
 - displays candidate summary details
 - shows count of resumes and extracted info records
 - renders a profile detail section for a selected candidate
+
+### `profile_page.py`
+
+- lets the user select a candidate
+- edits contact, summary, experience, skills, education, and experience level
+- edits preferred roles, locations, work modes, and minimum salary
+- saves validated profile and preference changes through `CandidateService`
 
 ## Current data flow
 

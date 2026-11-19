@@ -14,7 +14,7 @@ This document distinguishes the project handoff's intended principles from choic
 
 ## Choices currently present in source
 
-- `app/main.py` runs a Streamlit application with Dashboard, Upload, and Review pages.
+- `app/main.py` runs a Streamlit application with Dashboard, Candidate Profile, Upload, and Review pages.
 - `app/database/database.py` configures a fixed SQLite URL: `sqlite:///./careerpilot.db`.
 - `app/database/models.py` defines Candidate, Resume, ExtractedInfo, and ExtractionHistory tables.
 - `app/services/resume_service.py` stores uploaded files in `data/resumes/` and keeps extracted text in SQLite.
@@ -23,11 +23,13 @@ This document distinguishes the project handoff's intended principles from choic
 - `app/services/extraction_service.py` stores pending extraction, review state, and approved candidate profile updates transactionally.
 - The app is single-user for the current prototype. Candidate IDs scope resume and extraction operations; account-level isolation and authentication are out of scope until multi-user support is requested.
 - Upload UI orchestration remains in the page because it coordinates existing services without duplicating core business rules; a separate pipeline abstraction is not currently justified.
+- Candidate experience, skills, education, and job preferences are stored as candidate profile columns. Text fields are used for roles, locations, skills, and work modes instead of normalized related tables for this MVP foundation.
+- Existing SQLite databases receive missing candidate profile columns during startup. The migration is intentionally small and local; a versioned migration framework is not added until the schema grows.
 - Existing candidate profile values are preserved by default; replacing populated values requires explicit confirmation.
 - `requirements.txt` is the canonical pinned runtime dependency list and was verified in the existing Python 3.14.4 environment.
 
 ## Remaining gaps
 
-- There is no migration strategy for existing SQLite databases.
+- The SQLite migration is additive and not backed by versioned migration history.
 
 Do not treat unimplemented behavior or earlier aspirational documentation as a completed technical decision.

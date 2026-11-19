@@ -7,7 +7,7 @@ from unittest.mock import DEFAULT, patch
 
 from docx import Document
 import httpx
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -272,6 +272,71 @@ class ResumePipelineTests(unittest.TestCase):
         updated_candidate = self.candidate_service.get_candidate_by_id(candidate.id)
         self.assertEqual(updated_candidate.full_name, "Reviewed Candidate")
         self.assertEqual(updated_candidate.email, "reviewed@example.com")
+        self.assertEqual(updated_candidate.experience, "Five years of experience")
+        self.assertEqual(updated_candidate.skills, "Python, SQL")
+        self.assertEqual(updated_candidate.education, "BSc Computer Science")
+
+    def test_candidate_profile_and_preferences_can_be_updated(self):
+        candidate = self.candidate_service.create_candidate(
+            full_name="Profile Candidate",
+            email="profile@example.com",
+        )
+
+        updated = self.candidate_service.update_candidate(
+            candidate.id,
+            phone="555-0199",
+            experience="Three years as a Python developer",
+            skills="Python, SQLite",
+            education="BSc Computing",
+            years_of_experience=3,
+            preferred_roles="Python Developer, Backend Engineer",
+            preferred_locations="Toronto, Remote",
+            work_modes="Remote, Hybrid",
+            minimum_salary=90000,
+        )
+
+        self.assertEqual(updated.phone, "555-0199")
+        self.assertEqual(updated.years_of_experience, 3)
+        self.assertEqual(updated.minimum_salary, 90000)
+        self.assertEqual(updated.work_modes, "Remote, Hybrid")
+
+        with self.assertRaisesRegex(ValueError, "non-negative integer"):
+            self.candidate_service.update_candidate(
+                candidate.id,
+                years_of_experience=-1,
+            )
+
+    def test_database_migration_adds_phase4_candidate_columns(self):
+        migration_engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        with migration_engine.begin() as db:
+            db.execute(text(
+                "CREATE TABLE candidates ("
+                "id INTEGER PRIMARY KEY, "
+                "full_name VARCHAR, "
+                "email VARCHAR"
+                ")"
+            ))
+
+        from app.database import database
+
+        with patch.object(database, "engine", migration_engine):
+            database._migrate_candidate_profile_columns()
+
+        with migration_engine.begin() as db:
+            columns = {
+                row[1]
+                for row in db.execute(text("PRAGMA table_info(candidates)"))
+            }
+            self.assertIn("experience", columns)
+            self.assertIn("skills", columns)
+            self.assertIn("preferred_roles", columns)
+            self.assertIn("minimum_salary", columns)
+
+        migration_engine.dispose()
 
     def test_unapproved_or_mismatched_extraction_cannot_update_candidate(self):
         candidate, resume = self.create_candidate_and_resume()

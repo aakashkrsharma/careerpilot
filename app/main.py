@@ -8,6 +8,7 @@ from app.services.resume_service import ResumeService
 from app.ui.upload_page import show_upload_page
 from app.ui.review_page import show_review_page
 from app.ui.dashboard_page import show_dashboard_page
+from app.ui.profile_page import show_profile_page
 
 # Initialize database
 init_db()
@@ -28,11 +29,16 @@ Upload your resume, let AI extract information, review it, and store your profil
 
 # Navigation sidebar
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Dashboard", "Upload Resume", "Review Information"])
+page = st.sidebar.radio(
+    "Go to",
+    ["Dashboard", "Candidate Profile", "Upload Resume", "Review Information"],
+)
 
 # Page routing
 if page == "Dashboard":
     show_dashboard_page()
+elif page == "Candidate Profile":
+    show_profile_page()
 elif page == "Upload Resume":
     show_upload_page()
 elif page == "Review Information":

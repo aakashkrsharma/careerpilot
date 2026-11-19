@@ -24,6 +24,14 @@ class Candidate(Base):
     linkedin = Column(String)
     github = Column(String)
     summary = Column(Text)
+    experience = Column(Text)
+    skills = Column(Text)
+    education = Column(Text)
+    years_of_experience = Column(Integer)
+    preferred_roles = Column(Text)
+    preferred_locations = Column(Text)
+    work_modes = Column(Text)
+    minimum_salary = Column(Integer)
     
     # Relationship with resumes
     resumes = relationship("Resume", back_populates="candidate")

@@ -4,6 +4,7 @@ Database setup for CareerPilot - Local-first AI Job Hunting Agent
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import inspect, text
 import os
 
 # Create database engine
@@ -29,3 +30,30 @@ def init_db():
     """Initialize database tables"""
     from .models import Base
     Base.metadata.create_all(bind=engine)
+    _migrate_candidate_profile_columns()
+
+
+def _migrate_candidate_profile_columns():
+    """Add Phase 4 candidate columns to databases created by earlier versions."""
+    column_definitions = {
+        "experience": "TEXT",
+        "skills": "TEXT",
+        "education": "TEXT",
+        "years_of_experience": "INTEGER",
+        "preferred_roles": "TEXT",
+        "preferred_locations": "TEXT",
+        "work_modes": "TEXT",
+        "minimum_salary": "INTEGER",
+    }
+    with engine.begin() as db:
+        candidate_columns = {
+            column["name"] for column in inspect(db).get_columns("candidates")
+        }
+        for column_name, column_type in column_definitions.items():
+            if column_name not in candidate_columns:
+                db.execute(
+                    text(
+                        f"ALTER TABLE candidates "
+                        f"ADD COLUMN {column_name} {column_type}"
+                    )
+                )

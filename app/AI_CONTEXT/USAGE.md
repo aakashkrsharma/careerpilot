@@ -8,7 +8,15 @@ Start the app from the project root (the directory containing `app/` and `requir
 python -m streamlit run app/main.py
 ```
 
-The app has Dashboard, Upload Resume, and Review Information pages.
+The app has Dashboard, Candidate Profile, Upload Resume, and Review Information pages.
+
+## Candidate profile
+
+1. Open Candidate Profile from the sidebar.
+2. Select a candidate.
+3. Edit contact details, summary, experience, skills, education, and years of experience.
+4. Set preferred roles, locations, work modes, and an optional minimum salary.
+5. Click Save Profile.
 
 ## Resume processing
 
@@ -19,7 +27,7 @@ The app has Dashboard, Upload Resume, and Review Information pages.
 5. After processing, open Review Information from the sidebar, select the candidate and resume, correct the fields, and save. Approval is on this page, not the upload results page.
 6. To apply the reviewed data to the candidate profile, check “Approve this information” before saving.
 
-Approved values fill empty candidate profile fields by default. To replace existing values, also check “Replace existing candidate profile values with approved values.” Experience, skills, and education remain in the extraction record; the candidate profile currently has no corresponding columns for them.
+Approved values fill empty candidate profile fields by default. To replace existing values, also check “Replace existing candidate profile values with approved values.” Approved experience, skills, and education also update the candidate profile.
 
 ## Errors and supported files
 

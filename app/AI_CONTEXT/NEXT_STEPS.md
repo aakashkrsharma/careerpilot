@@ -12,7 +12,7 @@ Implemented and verified:
 - application of approved profile values, filling empty fields by default and replacing existing values only after a separate explicit choice
 - integration coverage for the full service workflow, candidate scoping, and unique-email rollback
 
-Ten tests pass.
+Twelve tests pass.
 
 ## Phase 2: configuration and isolation — complete
 
@@ -31,11 +31,21 @@ Verified:
 - Used a temporary database and test workspace; the user's existing database and resume files were not used or changed.
 - Updated AI_CONTEXT documentation to reflect the verified behavior.
 
-## After Phase 3
+## Phase 4: profile and preferences — complete
 
-- Gather user feedback and choose the next job-hunting feature before expanding scope.
-- Keep account-level isolation out of scope unless multi-user support is requested.
-- Paid or remote LLM APIs
-- Microservices or a job queue
-- Production hosting and multi-user authentication
-- Additional job-hunting features beyond the resume pipeline
+Implemented and verified:
+
+- structured candidate experience, skills, education, and years of experience
+- preferred roles, locations, work modes, and minimum salary
+- direct candidate profile editing through Streamlit
+- approved resume extraction updating structured profile fields
+- additive SQLite startup migration for existing databases
+- profile update validation and migration tests
+
+## Phase 5: job discovery and storage — next
+
+1. Define and migrate a normalized `Job` model with source, URL, title, company, location, description, remote/work mode, posted date, and extraction status.
+2. Support manual job-description/URL entry first, keeping the local-first architecture and no paid APIs.
+3. Add source integration only for sources that provide permitted access; one source may be implemented first.
+4. Add filtering by skills, location, experience level, work mode, and preferences.
+5. Deduplicate jobs by stable source/URL key and add tests for filtering and duplicate prevention.

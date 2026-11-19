@@ -5,6 +5,7 @@ from typing import Optional, List
 from app.database.models import Candidate, Resume, ExtractedInfo
 from app.database.database import get_db
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 class CandidateService:
     def create_candidate(self, full_name: str, email: str, **kwargs) -> Candidate:
@@ -92,6 +93,35 @@ class CandidateService:
         Returns:
             Candidate or None: Updated candidate object if found
         """
+        allowed_fields = {
+            "full_name",
+            "email",
+            "phone",
+            "location",
+            "linkedin",
+            "github",
+            "summary",
+            "experience",
+            "skills",
+            "education",
+            "years_of_experience",
+            "preferred_roles",
+            "preferred_locations",
+            "work_modes",
+            "minimum_salary",
+        }
+        if not set(kwargs).issubset(allowed_fields):
+            unknown = sorted(set(kwargs) - allowed_fields)
+            raise ValueError(f"Unknown candidate fields: {', '.join(unknown)}")
+        if "years_of_experience" in kwargs:
+            value = kwargs["years_of_experience"]
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValueError("Years of experience must be a non-negative integer.")
+        if "minimum_salary" in kwargs:
+            value = kwargs["minimum_salary"]
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValueError("Minimum salary must be a non-negative integer.")
+
         db = next(get_db())
         try:
             candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
@@ -103,6 +133,12 @@ class CandidateService:
                 db.refresh(candidate)
                 return candidate
             return None
+        except IntegrityError as exc:
+            db.rollback()
+            raise ValueError(
+                "The profile update conflicts with existing data; "
+                "candidate email addresses must be unique."
+            ) from exc
         except Exception as e:
             db.rollback()
             raise e

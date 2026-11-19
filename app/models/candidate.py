@@ -14,6 +14,14 @@ class CandidateBase(BaseModel):
     linkedin: Optional[str] = None
     github: Optional[str] = None
     summary: Optional[str] = None
+    experience: Optional[str] = None
+    skills: Optional[str] = None
+    education: Optional[str] = None
+    years_of_experience: Optional[int] = None
+    preferred_roles: Optional[str] = None
+    preferred_locations: Optional[str] = None
+    work_modes: Optional[str] = None
+    minimum_salary: Optional[int] = None
 
 class CandidateCreate(CandidateBase):
     """Model for creating a new candidate"""

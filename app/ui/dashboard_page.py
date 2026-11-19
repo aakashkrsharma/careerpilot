@@ -37,7 +37,7 @@ def show_dashboard_page():
     # Convert to DataFrame for easier display
     import pandas as pd
     df = pd.DataFrame(candidate_data)
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width="stretch")
     
     # Detailed view for selected candidate
     st.subheader("Candidate Details")
@@ -68,6 +68,27 @@ def show_dashboard_page():
         if candidate.summary:
             st.markdown("#### Summary")
             st.write(candidate.summary)
+        if candidate.skills:
+            st.write(f"**Skills:** {candidate.skills}")
+        if candidate.experience:
+            st.markdown("#### Experience")
+            st.write(candidate.experience)
+        if candidate.education:
+            st.write(f"**Education:** {candidate.education}")
+        if candidate.years_of_experience is not None:
+            st.write(
+                f"**Years of Experience:** {candidate.years_of_experience}"
+            )
+        if candidate.preferred_roles:
+            st.write(f"**Preferred Roles:** {candidate.preferred_roles}")
+        if candidate.preferred_locations:
+            st.write(
+                f"**Preferred Locations:** {candidate.preferred_locations}"
+            )
+        if candidate.work_modes:
+            st.write(f"**Work Modes:** {candidate.work_modes}")
+        if candidate.minimum_salary:
+            st.write(f"**Minimum Salary:** {candidate.minimum_salary}")
         
         # Display resume information
         st.markdown("### Resumes")

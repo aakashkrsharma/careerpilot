@@ -25,6 +25,7 @@ The first resume-processing pipeline is implemented as an early local prototype:
 - Successful, Pydantic-validated model output is stored as pending `ExtractedInfo`, with the prompt and raw response.
 - Review corrections, review status, and approval timestamps are persisted transactionally.
 - Approved profile fields fill empty candidate values; replacing populated values requires explicit reviewer confirmation.
+- Candidate profiles include structured experience, skills, education, experience level, and job-search preferences. A dedicated profile page allows direct edits.
 
 ## Important constraints
 

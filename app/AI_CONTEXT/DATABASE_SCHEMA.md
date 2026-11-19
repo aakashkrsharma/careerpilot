@@ -30,6 +30,14 @@ Represents the user/candidate profile being reviewed.
 | `linkedin` | String | optional |
 | `github` | String | optional |
 | `summary` | Text | optional |
+| `experience` | Text | approved or manually maintained work history |
+| `skills` | Text | approved or manually maintained skill list |
+| `education` | Text | approved or manually maintained education |
+| `years_of_experience` | Integer | optional experience level |
+| `preferred_roles` | Text | comma-separated preferred job titles |
+| `preferred_locations` | Text | comma-separated preferred locations |
+| `work_modes` | Text | comma-separated work mode preferences |
+| `minimum_salary` | Integer | optional minimum desired salary |
 | `created_at` | DateTime | default UTC now |
 | `updated_at` | DateTime | auto-updated |
 
@@ -109,4 +117,4 @@ Tracks extraction attempts and metadata for debugging and auditing.
 - `Resume.is_processed` remains `False` until valid extraction data is persisted for review.
 - `ExtractedInfo` rows are initially pending (`is_reviewed=False`, `is_approved=False`) and store the prompt and raw model response.
 - ORM foreign keys do not declare cascade-delete behavior.
-- no schema migration mechanism is present; `create_all()` creates missing tables but does not migrate existing ones.
+- startup performs a small SQLite migration that adds missing Phase 4 candidate profile columns; it does not yet provide versioned migration history.
