@@ -90,6 +90,47 @@ def show_clarification_queue_page():
             except (ValueError, SQLAlchemyError) as exc:
                 st.error(f"Could not assess question: {exc}")
 
+    st.subheader("Bulk Question Import")
+    if applications:
+        with st.form("bulk_screening_questions"):
+            bulk_application = st.selectbox(
+                "Application for bulk questions",
+                options=list(application_options.keys()),
+                key="bulk_application",
+            )
+            bulk_text = st.text_area(
+                "Paste screening questions (one per line)",
+                height=150,
+            )
+            bulk_assess = st.form_submit_button("Assess Bulk Questions")
+        if bulk_assess and bulk_text.strip():
+            questions = [
+                {
+                    "question_text": line.strip(),
+                    "canonical_key": None,
+                    "proposed_answer": None,
+                    "category": None,
+                    "sensitivity": "normal",
+                    "ambiguous": False,
+                    "required": True,
+                }
+                for line in bulk_text.splitlines()
+                if line.strip()
+            ]
+            try:
+                result = clarification_queue_service.assess_questions(
+                    application_options[bulk_application],
+                    candidate_id,
+                    questions,
+                )
+                st.success(
+                    f"Assessed {len(questions)} question(s). "
+                    f"Auto-answered: {len(result.auto_answers)}; "
+                    f"queued: {len(result.request_ids)}."
+                )
+            except (ValueError, SQLAlchemyError) as exc:
+                st.error(f"Could not assess bulk questions: {exc}")
+
     queue = clarification_queue_service.get_queue(candidate_id)
     st.subheader("Questions Requiring Your Input")
     if not queue:

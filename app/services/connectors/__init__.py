@@ -24,6 +24,7 @@ from app.services.connectors.public_apis import (
     SmartRecruitersConnector,
     USAJobsConnector,
 )
+from app.services.connectors.search import SearchEngineConnector
 
 
 CONNECTOR_TYPES: dict[str, Type[BaseConnector]] = {
@@ -40,6 +41,7 @@ CONNECTOR_TYPES: dict[str, Type[BaseConnector]] = {
     "usajobs": USAJobsConnector,
     "remotive": RemotiveConnector,
     "smartrecruiters": SmartRecruitersConnector,
+    "search_engine": SearchEngineConnector,
 }
 
 DEFAULT_INTERVAL_SECONDS = {
@@ -141,6 +143,13 @@ SOURCE_TEMPLATES = (
         "region_group": "us_global",
         "requires": "API key and contact User-Agent in USAJOBS_API_KEY and USAJOBS_USER_AGENT environment variables",
         "policy_url": "https://developer.usajobs.gov/",
+    },
+    {
+        "connector_type": "search_engine",
+        "label": "Search engine (site: queries, no login)",
+        "region_group": "global_remote",
+        "requires": "No credentials; searches public job pages via DuckDuckGo",
+        "policy_url": None,
     },
 )
 

@@ -1,9 +1,12 @@
 """Track permanent application history and candidate-controlled completion."""
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.services.application_executor import ManualApplicationExecutor
+from app.services.application_packet_service import application_packet_service
 from app.services.application_service import application_service
 from app.services.candidate_service import candidate_service
 from app.services.job_service import job_service
@@ -55,6 +58,12 @@ def show_application_tracker_page():
         for application in applications
     ]
     st.dataframe(pd.DataFrame(summary), hide_index=True, width="stretch")
+    if st.button("Export History to CSV", key="tracker_export_csv"):
+        export_dir = Path("data/exports")
+        export_dir.mkdir(parents=True, exist_ok=True)
+        export_path = export_dir / f"applications_candidate_{candidate_id}.csv"
+        pd.DataFrame(summary).to_csv(export_path, index=False)
+        st.success(f"History exported: {export_path}")
 
     for application in applications:
         job = job_service.get_job_by_id(application.job_id)
@@ -72,6 +81,17 @@ def show_application_tracker_page():
             )
             if application.source_url:
                 st.link_button("Open Job", application.source_url)
+            if st.button(
+                "Prepare Application Packet",
+                key=f"tracker_packet_{application.id}",
+            ):
+                try:
+                    packet_dir = application_packet_service.prepare_packet(
+                        candidate_id=candidate_id, application_id=application.id
+                    )
+                    st.success(f"Packet ready: {packet_dir}")
+                except (ValueError, OSError) as exc:
+                    st.error(f"Could not prepare packet: {exc}")
             if application.status == "discovered":
                 drafts = [
                     draft
@@ -187,6 +207,23 @@ def show_application_tracker_page():
                 st.write(
                     f"**Follow up:** {application.follow_up_at.strftime('%Y-%m-%d')}"
                 )
+            if application.status == "applied":
+                if st.button(
+                    "Mark Follow-Up",
+                    key=f"tracker_followup_{application.id}",
+                ):
+                    try:
+                        application_service.transition_status(
+                            application.id,
+                            candidate_id,
+                            "follow_up",
+                            actor="candidate",
+                            reason="Candidate scheduled a follow-up.",
+                        )
+                        st.success("Follow-up recorded.")
+                        st.rerun()
+                    except (ValueError, SQLAlchemyError) as exc:
+                        st.error(f"Could not record follow-up: {exc}")
 
 
 if __name__ == "__main__":

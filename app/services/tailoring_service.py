@@ -1,6 +1,7 @@
 """Local Ollama resume-tailoring drafts with explicit review and approval."""
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -17,7 +18,7 @@ from app.models.tailored_resume import TailoredResumeOutput
 class TailoringService:
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.model_name = os.getenv("OLLAMA_MODEL", "llama3")
+        self.model_name = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:1.5b")
         self.client = ollama.Client(host=self.base_url)
         self.output_dir = Path("data") / "tailored_resumes"
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -126,8 +127,12 @@ Target job facts:
     def _parse_response(self, raw_response: str) -> TailoredResumeOutput:
         if not isinstance(raw_response, str):
             raise ValueError("Tailoring response must be text.")
+        cleaned = raw_response.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
         try:
-            parsed = json.loads(raw_response)
+            parsed = json.loads(cleaned)
         except json.JSONDecodeError as exc:
             raise ValueError("Tailoring response must be valid JSON.") from exc
         try:
@@ -258,6 +263,39 @@ Target job facts:
             draft = db.query(TailoredResume).filter(
                 TailoredResume.id == draft_id
             ).first()
+            draft.exported_path = str(path)
+        return str(path)
+
+    def export_docx(self, draft_id: int, candidate_id: int) -> str:
+        from docx import Document
+
+        with SessionLocal() as db:
+            draft = db.query(TailoredResume).filter(
+                TailoredResume.id == draft_id,
+                TailoredResume.candidate_id == candidate_id,
+            ).first()
+            if draft is None:
+                raise ValueError("Tailored resume was not found.")
+            if not draft.is_approved:
+                raise ValueError("The tailored resume must be approved before export.")
+            draft_text = draft.draft_text
+            job = db.query(Job).filter(Job.id == draft.job_id).first()
+
+        candidate_dir = self.output_dir / str(candidate_id)
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        safe_title = "".join(
+            character if character.isalnum() or character in ("-", "_") else "_"
+            for character in (job.title if job is not None else "resume")
+        ).strip("_") or "resume"
+        path = candidate_dir / f"{safe_title}-job-{draft.job_id}-draft-{draft.id}.docx"
+
+        document = Document()
+        for line in draft_text.splitlines():
+            document.add_paragraph(line)
+        document.save(path)
+
+        with SessionLocal.begin() as db:
+            draft = db.query(TailoredResume).filter(TailoredResume.id == draft_id).first()
             draft.exported_path = str(path)
         return str(path)
 

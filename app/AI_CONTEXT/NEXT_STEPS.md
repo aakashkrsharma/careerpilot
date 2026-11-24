@@ -85,8 +85,8 @@ Implemented:
 4. Candidate-approved answer reuse and a clarification queue for missing, ambiguous, and high-stakes questions.
 5. Candidate-approved, scoped answer-bank persistence and explicit `Applied` confirmation.
 6. `JobSourceConnector` and `ApplicationExecutor` protocols, plus a manual-only adapter that hands off login, CAPTCHA, and submission steps.
-7. Batch Review, Clarification Queue, Application Tracker, and Dashboard status summaries.
-8. Integration tests for 14/16-day cooldown behavior, company cooldown configuration, progressive batch size/stages, clarification reuse, approval boundaries, migration preservation, and UI smoke behavior.
+7. Five-section UI navigation with Dashboard, Candidate Profile, Jobs & Discovery, Apply Workflow, and Application Tracker. Resume upload/review is inline in Candidate Profile; discovery/matching and batch/tailoring/clarification are grouped into nested workspaces.
+8. Integration tests for 14/16-day cooldown behavior, company cooldown configuration, progressive batch size/stages, clarification reuse, approval boundaries, migration preservation, five-section navigation, and inline profile confirmation.
 
 Current Phase 8 boundaries:
 
@@ -103,7 +103,9 @@ Current Phase 8 boundaries:
 
 ## Recommended next steps
 
-1. Register and terms-check the initial permitted sources, starting with employer ATS boards hiring in India and authorized RSS/XML feeds. Add multiple Greenhouse, Lever, or Ashby boards as needed.
-2. Verify real-source behavior, attribution, India/APAC filtering, currency parsing, cooldown reporting, and source-health recovery in the local UI. Keep USAJOBS disabled unless deliberately configured with its API key and contact User-Agent environment variables.
-3. Use a local OS scheduler to call the CLI only after source intervals and search criteria are configured; no in-process scheduler is needed.
-4. After discovery is exercised with candidate-managed sources, proceed to interview preparation. Consider form-question intake only where permitted, keeping candidate review and manual-only submission boundaries intact.
+1. Launch from the repository root with `.venv/bin/python -m streamlit run app/main.py`; confirm all five top-level sections load and Dashboard quick actions navigate.
+2. In Candidate Profile, create/select a candidate, upload a resume, review the extracted fields inline, confirm/save, and verify the same candidate remains selected after reruns.
+3. Use Jobs & Discovery's source-management and ranked-matches sections; register and terms-check permitted sources, starting with employer ATS boards hiring in India and authorized RSS/XML feeds. Add multiple Greenhouse, Lever, or Ashby boards as needed.
+4. Verify real-source behavior, attribution, India/APAC filtering, currency parsing, cooldown reporting, and source-health recovery in the local UI. Keep USAJOBS disabled unless deliberately configured with its API key and contact User-Agent environment variables.
+5. Use a local OS scheduler to call the CLI only after source intervals and search criteria are configured; no in-process scheduler is needed.
+6. After discovery is exercised with candidate-managed sources, proceed to interview preparation. Consider form-question intake only where permitted, keeping candidate review and manual-only submission boundaries intact.

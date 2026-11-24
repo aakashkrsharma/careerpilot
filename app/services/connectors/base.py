@@ -70,9 +70,12 @@ class BaseConnector:
                     payload.extend(chunk)
                     if len(payload) > MAX_RESPONSE_BYTES:
                         raise ConnectorError("Source response exceeded the 5 MiB limit.")
+                headers = dict(response.headers)
+                headers.pop("content-encoding", None)
+                headers.pop("content-length", None)
                 result = httpx.Response(
                     status_code=response.status_code,
-                    headers=response.headers,
+                    headers=headers,
                     content=bytes(payload),
                     request=httpx.Request("GET", url),
                 )

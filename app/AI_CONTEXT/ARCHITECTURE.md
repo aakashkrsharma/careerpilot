@@ -9,13 +9,10 @@ CareerPilot uses a simple layered architecture centered on a Streamlit frontend 
 ```text
 ┌──────────────────────────────┐
 │ Streamlit UI                 │
-│  - Upload page              │
-│  - Review page              │
-│  - Dashboard page           │
-│  - Discover Jobs            │
-│  - Jobs                     │
-│  - Batch Review             │
-│  - Clarification Queue      │
+│  - Dashboard                │
+│  - Candidate Profile        │
+│  - Jobs & Discovery         │
+│  - Apply Workflow           │
 │  - Application Tracker      │
 └──────────────┬───────────────┘
                │ calls
@@ -206,15 +203,23 @@ registered source and a six-hour minimum interval.
 
 Location: `app/ui/`
 
+`app/main.py` provides five top-level horizontal navigation sections:
+Dashboard, Candidate Profile, Jobs & Discovery, Apply Workflow, and Application
+Tracker. The Dashboard includes quick-action buttons. Jobs & Discovery nests
+source management/discovery and ranked matches/manual entry; Apply Workflow
+nests batch review, resume tailoring, and clarification. The nested workspaces
+reuse the existing page modules and service logic.
+
 ### `upload_page.py`
 
-- lets the user select or create a candidate
+- provides the reusable `process_uploaded_resume()` flow used by Candidate Profile
 - validates and saves the file, extracts text, creates a resume record, and calls the LLM extraction flow
 - persists valid output as pending review before showing it
 - reports parsing, LLM, and persistence failures instead of continuing with empty text or sample data
 
 ### `review_page.py`
 
+- provides `show_inline_extraction_review()` for review inside Candidate Profile; the legacy standalone page is not in the primary navigation
 - loads the candidate's resumes and queries an extraction row for the selected resume
 - exposes editable text fields for core profile attributes
 - allows the user to correct and approve extracted data
@@ -227,10 +232,14 @@ Location: `app/ui/`
 - displays candidate summary details
 - shows count of resumes and extracted info records
 - renders a profile detail section for a selected candidate
+- the main navigation adds quick actions to the other four sections
 
 ### `profile_page.py`
 
-- lets the user select a candidate
+- lets the user select a candidate and upload a resume from the page header
+- creates a candidate when none exists, then retains that candidate selection across reruns
+- processes new resumes and renders extracted fields for inline review
+- clears pending review state only after the candidate confirms and saves
 - edits contact, summary, experience, skills, education, and experience level
 - edits preferred roles, locations, work modes, and minimum salary
 - saves validated profile and preference changes through `CandidateService`
@@ -265,11 +274,11 @@ Location: `app/ui/`
 
 ## Current data flow
 
-1. The upload page saves the original resume under `data/resumes/`.
+1. Candidate Profile saves the original resume under `data/resumes/`.
 2. `ResumeService` extracts text and stores it with a `Resume` row, initially unprocessed.
 3. `LLMService` calls Ollama and validates its JSON output.
 4. `ExtractionService` persists valid output as pending review and marks the resume processed.
-5. The review page saves corrections and approval status in one database transaction.
+5. Candidate Profile renders the pending extraction inline; `ExtractionService` saves corrections and approval status in one database transaction.
 6. Approved fields update empty profile values; replacing populated values requires explicit reviewer confirmation.
 7. Discover Jobs sends only reviewed search terms/locations to enabled, terms-approved connectors. The runner normalizes and upserts records, retains provider listings, applies India/APAC eligibility, and checks active/cooldown application history.
 8. Batch Review stores up to 20 selected application records as a draft snapshot; application status progression requires batch approval.
@@ -280,7 +289,7 @@ Location: `app/ui/`
 
 - the app is designed to run locally on one machine
 - the Ollama server defaults to `http://localhost:11434`; `OLLAMA_BASE_URL` can override it
-- `OLLAMA_MODEL` selects the local model and defaults to `llama3`
+- `OLLAMA_MODEL` selects the local model and defaults to `qwen3-coder:30b`
 - no asynchronous queue or in-process scheduler is used; the one-shot CLI can be invoked by the local OS scheduler
 
 ## Operational constraints

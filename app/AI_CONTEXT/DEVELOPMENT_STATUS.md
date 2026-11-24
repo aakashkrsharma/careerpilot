@@ -6,16 +6,18 @@ Phases 1–8 and the multi-source discovery engine are implemented in the local 
 
 ## Implemented
 
-- Streamlit entry point and Dashboard, Upload Resume, and Review Information pages.
+- Streamlit presents five MVP navigation sections: Dashboard, Candidate Profile, Jobs & Discovery, Apply Workflow, and Application Tracker.
+- Streamlit entry point now resolves the repository root before importing `app.*`, preventing `ModuleNotFoundError` when launched from the app directory or by script path. Starting from the repository root is still recommended so SQLite and local data use expected locations.
 - SQLAlchemy models for candidates, resumes, extracted information, and extraction history.
 - Local SQLite storage and candidate/resume management services.
 - Resume upload and text extraction for PDF, DOCX, and TXT. Unsupported, unreadable, or empty resumes fail explicitly.
 - Local Ollama extraction with Pydantic response validation. Connection, malformed-response, and empty-result failures are surfaced; sample candidate data is no longer returned.
-- Ollama client host and model are configurable with `OLLAMA_BASE_URL` and `OLLAMA_MODEL`.
+- Ollama client host and model are configurable with `OLLAMA_BASE_URL` and `OLLAMA_MODEL`; the default model is the installed `qwen3-coder:30b` tag.
 - Pending extraction persistence, including candidate/resume IDs, prompt, and raw response. A resume is marked processed only after extraction persistence succeeds.
 - Transactional review save, review/approval timestamps, and approved candidate-profile updates.
 - Empty candidate profile fields are filled after approval. Replacing populated values requires a separate explicit choice.
-- Dashboard resume lookup uses `CandidateService`, and successful upload directs users to the review/approval page.
+- Candidate Profile integrates resume upload, processing, inline extraction review, explicit confirmation, direct profile edits, and resume history. Pending review state is cleared after confirmation, and the selected candidate is retained across reruns.
+- Dashboard includes quick actions to each other top-level section and retains application-status summaries.
 - Focused service integration tests with temporary SQLite and mocked Ollama, including configured Ollama host/model behavior.
 - Candidate profiles now store experience, skills, education, years of experience, preferred roles, preferred locations, work modes, and minimum salary.
 - A dedicated Candidate Profile page allows direct profile and job-preference edits.
@@ -27,6 +29,7 @@ Phases 1–8 and the multi-source discovery engine are implemented in the local 
 - The Clarification Queue reuses eligible approved answers, pauses missing, ambiguous, and high-stakes questions, and saves candidate-approved answers transactionally to the selected answer-bank scope.
 - `JobSourceConnector` and `ApplicationExecutor` protocols define future extension points. The current executor is manual-only and explicitly hands off authentication, CAPTCHA, and submission steps to the candidate.
 - Batch Review, Clarification Queue, Application Tracker, and Dashboard application status summaries are available in Streamlit. Manual applications are marked `Applied` only after explicit candidate confirmation.
+- Jobs & Discovery combines source management/discovery with ranked matches/manual entry; Apply Workflow combines batch review, resume tailoring, and clarification without changing their service logic.
 - Thirteen read-only connector types are available: Greenhouse, Lever, Ashby, Arbeitnow, Jobicy, Remote OK, Himalayas, We Work Remotely RSS, generic RSS/Atom, mapped XML, SmartRecruiters, Remotive (opt-in), and USAJOBS (disabled by default). Employer-specific ATS boards can be registered independently.
 - `JobSource` stores connector configuration, terms approval, rate-limit/backoff state, latest source health, and counts. `JobSourceListing` retains each provider listing and maps it to a canonical local `Job`.
 - `JobService.upsert_normalized_job` deduplicates normalized URLs and title/company/location identities across providers while retaining separate source listings. Every discovered job is checked against the candidate's active applications and configured reapply cooldown; application history is never removed.
@@ -34,6 +37,14 @@ Phases 1–8 and the multi-source discovery engine are implemented in the local 
 - Salary normalization retains currency, period, and source text; LPA ranges are stored as annual INR amounts and displayed as LPA. No currency conversion is performed.
 - The Discover Jobs page registers and manages sources, collects editable role/location criteria, starts an on-demand run, and displays source health and run outcomes. `python -m app.discovery_cli --candidate-id <id>` provides a one-shot entry point for local OS scheduling.
 - Only the selected search terms and locations are sent to the chosen sources. Candidate identity, resumes, and answer-bank contents are not sent. Credentials are referenced through environment-variable names and are not stored in SQLite.
+
+## Additional completed capabilities
+
+- Application packets are assembled per application under `data/application_packets/`.
+- Tailored resumes can be exported as DOCX in addition to text.
+- Jobs can be imported from a single public URL using schema.org JobPosting data.
+- Screening questions can be imported in bulk, one per line.
+- Application tracker supports follow-up marking and CSV export.
 
 ## Remaining limitations
 
@@ -46,10 +57,10 @@ Phases 1–8 and the multi-source discovery engine are implemented in the local 
 
 ## Tests and dependencies
 
-- Sixty-one `unittest` cases cover resume processing, profile/preferences, SQLite and Alembic migrations, local jobs, explainable matching, resume tailoring, cooldowns, progressive batches, clarification reuse, approval boundaries, connector parsing, cross-source deduplication, cooldown classification, rate limiting, source-failure isolation, CLI search-boundary behavior, and Streamlit UI smoke checks.
+- Sixty-four `unittest` cases cover resume processing, profile/preferences, SQLite and Alembic migrations, local jobs, explainable matching, resume tailoring, cooldowns, progressive batches, clarification reuse, approval boundaries, connector parsing, cross-source deduplication, cooldown classification, rate limiting, source-failure isolation, CLI search-boundary behavior, model defaults, five-section Streamlit navigation, and inline candidate-profile review/confirmation.
 - `requirements.txt` is the sole pinned runtime manifest. It includes Streamlit, SQLAlchemy, Pydantic, pandas, Ollama, HTTPX, PyPDF2, python-docx, and email-validator.
 - Existing-environment checks and a clean Python 3.14.4 virtualenv install from `requirements.txt` pass; `pip check` and imports pass in both.
-- The resume workflow was previously verified with local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume in an isolated temporary database. Phase 8 UI routes are smoke-tested with Streamlit `AppTest`; live portal behavior is intentionally not exercised.
+- The resume workflow was previously verified with local Ollama (`qwen3-coder:30b`) and a synthetic TXT resume in an isolated temporary database. The five navigation sections and candidate-profile confirmation are smoke-tested with Streamlit `AppTest`; live portal behavior is intentionally not exercised.
 - Existing SQLAlchemy and PyPDF2 deprecation warnings remain.
 
 ## Project principles to preserve

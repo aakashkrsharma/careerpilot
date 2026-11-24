@@ -2,6 +2,8 @@
 import streamlit as st
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.services.application_packet_service import application_packet_service
+from app.services.application_preparation_service import application_preparation_service
 from app.services.batch_selection_service import batch_selection_service
 from app.services.candidate_service import candidate_service
 
@@ -143,8 +145,36 @@ def show_batch_review_page():
                 st.rerun()
             except (ValueError, SQLAlchemyError) as exc:
                 st.error(f"Could not cancel batch: {exc}")
-    else:
+    if batch.status != "draft":
         st.success(f"Batch status: {batch.status}")
+
+    if st.button("Prepare Packets for This Batch", key=f"prepare_packets_{batch.id}"):
+        prepared = 0
+        errors = []
+        for application, _job in rows:
+            try:
+                application_packet_service.prepare_packet(
+                    candidate_id=candidate_id, application_id=application.id
+                )
+                prepared += 1
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"Application {application.id}: {exc}")
+        st.success(f"Prepared {prepared} application packet(s).")
+        if errors:
+            for error in errors:
+                st.error(error)
+
+    if st.button("Prepare Packets + Tailor in Parallel", key=f"prepare_parallel_{batch.id}"):
+        with st.spinner("Preparing packets and tailored drafts in parallel..."):
+            results = application_preparation_service.prepare_batch(
+                candidate_id=candidate_id,
+                application_ids=[application.id for application, _job in rows],
+            )
+        ok = [r for r in results if not r["error"]]
+        bad = [r for r in results if r["error"]]
+        st.success(f"Prepared {len(ok)} application(s) in parallel.")
+        for r in bad:
+            st.error(f"Application {r['application_id']}: {r['error']}")
 
 
 if __name__ == "__main__":

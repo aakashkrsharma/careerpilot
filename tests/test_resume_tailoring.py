@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -120,6 +121,17 @@ class ResumeTailoringTests(unittest.TestCase):
         self.assertIn("Do not add employers", generated["prompt"])
         self.assertIn("Test Candidate", generated["draft_text"])
         self.assertIn("Python", generated["draft_text"])
+
+    def test_tailoring_defaults_to_installed_qwen_model(self):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("app.services.tailoring_service.ollama.Client"),
+        ):
+            from app.services.tailoring_service import TailoringService
+
+            service = TailoringService()
+
+        self.assertEqual(service.model_name, "qwen2.5-coder:1.5b")
 
     def test_save_review_approval_and_export_workflow(self):
         candidate, job = self.create_candidate_job_and_resume()

@@ -547,15 +547,81 @@ class ApplicationWorkflowTests(unittest.TestCase):
             app = AppTest.from_file(str(app_path)).run()
             self.assertEqual(app.exception, [])
             for page in (
-                "Batch Review",
-                "Clarification Queue",
-                "Application Tracker",
                 "Dashboard",
-                "Discover Jobs",
+                "Candidate Profile",
+                "Jobs & Discovery",
+                "Apply Workflow",
+                "Application Tracker",
             ):
                 with self.subTest(page=page):
-                    app.sidebar.radio[0].set_value(page).run()
+                    app.radio[0].set_value(page).run()
                     self.assertEqual(app.exception, [])
+            app.radio[0].set_value("Dashboard").run()
+            app.button(key="dashboard_quick_action_Candidate Profile").click().run()
+            self.assertEqual(app.exception, [])
+            self.assertEqual(app.radio[0].value, "Candidate Profile")
+
+    def test_candidate_profile_inline_review_confirms_and_retains_selection(self):
+        candidate = self.create_candidate()
+        project_root = Path(__file__).resolve().parents[1]
+        app_path = project_root / "app" / "main.py"
+        extraction = {
+            "id": 41,
+            "full_name": candidate.full_name,
+            "email": candidate.email,
+            "phone": None,
+            "location": None,
+            "linkedin": None,
+            "github": None,
+            "summary": "Reviewed summary",
+            "experience": None,
+            "skills": "Python",
+            "education": None,
+        }
+        with (
+            patch("app.database.database.init_db"),
+            patch(
+                "app.services.resume_service.resume_service."
+                "get_resumes_by_candidate",
+                return_value=[],
+            ),
+            patch(
+                "app.services.extraction_service.extraction_service."
+                "get_extraction_for_resume",
+                return_value=extraction,
+            ),
+            patch(
+                "app.services.extraction_service.extraction_service.save_review"
+            ) as save_review,
+        ):
+            app = AppTest.from_file(str(app_path))
+            app.session_state["main_navigation"] = "Candidate Profile"
+            app.session_state["profile_pending_resume_review"] = {
+                "candidate_id": candidate.id,
+                "resume_id": 41,
+                "extraction_id": 41,
+            }
+            app.run()
+            self.assertEqual(app.exception, [])
+            self.assertIn(
+                "PDF, DOCX, or TXT",
+                [item.label for item in app.file_uploader],
+            )
+            self.assertEqual(len(app.form_submit_button), 1)
+
+            app.form_submit_button[0].click().run()
+
+            self.assertEqual(app.exception, [])
+            save_review.assert_called_once()
+            self.assertNotIn(
+                "profile_pending_resume_review",
+                app.session_state,
+            )
+            self.assertEqual(
+                app.session_state["profile_selected_candidate_id"],
+                candidate.id,
+            )
+            self.assertEqual(app.session_state["main_navigation"], "Candidate Profile")
 
     def test_startup_creates_baseline_then_runs_versioned_migrations(self):
         from app.database import database

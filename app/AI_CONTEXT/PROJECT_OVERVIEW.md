@@ -14,7 +14,13 @@ batch approval, and application completion require candidate review.
 The resume pipeline and Phases 4–8 application workflow are implemented as an
 early local prototype:
 
-- Streamlit provides Dashboard, Upload Resume, and Review Information pages.
+- Streamlit provides five top-level sections: Dashboard, Candidate Profile,
+  Jobs & Discovery, Apply Workflow, and Application Tracker. Jobs & Discovery
+  combines source management/discovery with ranked matches/manual entry;
+  Apply Workflow combines batch review, resume tailoring, and clarification.
+- Candidate Profile includes the candidate selector, resume upload and
+  processing, inline extraction review, explicit confirmation, and direct
+  profile editing. The selected candidate is retained across Streamlit reruns.
 - SQLAlchemy models define candidates, resumes, extracted information, and extraction history.
 - SQLite is hard-coded as `sqlite:///./careerpilot.db`.
 - PDF, DOCX, and TXT files are saved under `data/resumes/`; extracted text is stored in the `resumes` table.
@@ -36,7 +42,7 @@ early local prototype:
 
 ## Important constraints
 
-- Ollama is used for local inference; failures and malformed/empty responses are surfaced instead of replaced with sample candidate data. `OLLAMA_BASE_URL` and `OLLAMA_MODEL` configure the Ollama client.
+- Ollama is used for local inference; failures and malformed/empty responses are surfaced instead of replaced with sample candidate data. `OLLAMA_BASE_URL` and `OLLAMA_MODEL` configure the Ollama client; the default model tag is `qwen3-coder:30b`.
 - The app is intentionally single-user for the current prototype. Resume and extraction operations are scoped by candidate ID; there is no account-level authentication or multi-user isolation.
 - Legacy `.doc` is not supported; upload accepts PDF, DOCX, and TXT.
 - SQLite schema changes use Alembic through revision `0003_job_discovery`; legacy candidate-profile columns are added during startup. Runtime dependencies are consolidated in `requirements.txt`.

@@ -26,6 +26,16 @@ def show_jobs_page():
             candidate_options[selected_candidate]
         )
 
+    with st.expander("Import Job from Public URL", expanded=False):
+        with st.form("import_job_url_form"):
+            import_url = st.text_input("Public job posting URL")
+            if st.form_submit_button("Import Job"):
+                try:
+                    job = job_service.import_job_from_url(import_url)
+                    st.success(f"Imported job: {job.title} at {job.company}")
+                except (ValueError, Exception) as exc:
+                    st.error(f"Could not import job: {exc}")
+
     with st.expander("Add a Job", expanded=False):
         with st.form("add_job_form"):
             title = st.text_input("Job Title")

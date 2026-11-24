@@ -1,6 +1,7 @@
 """Local Ollama-based resume information extraction."""
 import json
 import os
+import re
 from typing import Any
 
 import httpx
@@ -13,7 +14,7 @@ from app.models.extracted_info import ExtractedInfoBase
 class LLMService:
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.model_name = os.getenv("OLLAMA_MODEL", "llama3")
+        self.model_name = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:1.5b")
         self.client = ollama.Client(host=self.base_url)
 
     def extract_information_from_resume(
@@ -73,13 +74,21 @@ Resume text:
         if not isinstance(response, str):
             raise ValueError("LLM response must be text.")
 
+        cleaned = response.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
         try:
-            parsed = json.loads(response)
+            parsed = json.loads(cleaned)
         except json.JSONDecodeError as exc:
             raise ValueError("LLM response must be a valid JSON object.") from exc
 
         if not isinstance(parsed, dict):
             raise ValueError("LLM response must be a valid JSON object.")
+
+        for key, value in list(parsed.items()):
+            if isinstance(value, (list, dict)):
+                parsed[key] = json.dumps(value, ensure_ascii=False)
 
         try:
             validated = ExtractedInfoBase.model_validate(parsed)

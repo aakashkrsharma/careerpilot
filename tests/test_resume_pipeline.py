@@ -210,6 +210,15 @@ class ResumePipelineTests(unittest.TestCase):
             stream=False,
         )
 
+    def test_llm_defaults_to_installed_qwen_model(self):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("app.services.llm_service.ollama.Client"),
+        ):
+            service = self.llm_service.__class__()
+
+        self.assertEqual(service.model_name, "qwen2.5-coder:1.5b")
+
     def test_pipeline_persists_pending_extraction_then_approved_profile(self):
         candidate, resume = self.create_candidate_and_resume()
         extraction_result = self.extract(candidate.id, resume.id)

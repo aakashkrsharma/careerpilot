@@ -8,6 +8,33 @@ from app.services.llm_service import llm_service
 from app.services.resume_service import resume_service
 from sqlalchemy.exc import SQLAlchemyError
 
+
+def process_uploaded_resume(candidate_id: int, uploaded_file) -> dict[str, int]:
+    """Persist an uploaded resume and its pending extraction for review."""
+    file_path = resume_service.save_resume_file(
+        file_name=uploaded_file.name,
+        file_content=uploaded_file.read(),
+    )
+    extracted_text = resume_service.extract_text_from_file(file_path)
+    resume = resume_service.create_resume_record(
+        candidate_id=candidate_id,
+        file_name=uploaded_file.name,
+        file_path=file_path,
+        extracted_text=extracted_text,
+    )
+    extraction_result = llm_service.extract_information_from_resume(
+        resume_text=extracted_text,
+        candidate_id=candidate_id,
+        resume_id=resume.id,
+    )
+    extraction_id = extraction_service.save_pending_extraction(extraction_result)
+    return {
+        "candidate_id": candidate_id,
+        "resume_id": resume.id,
+        "extraction_id": extraction_id,
+    }
+
+
 def show_upload_page():
     """Display the upload page for resumes"""
     st.header("Upload Resume")
@@ -72,36 +99,12 @@ def show_upload_page():
 
             with st.spinner("Processing resume..."):
                 try:
-                    # Save the uploaded file
-                    file_path = resume_service.save_resume_file(
-                        file_name=uploaded_file.name,
-                        file_content=uploaded_file.read()
-                    )
-                    
-                    # Extract text from the file
-                    extracted_text = resume_service.extract_text_from_file(file_path)
-                    
-                    # Create resume record in database
-                    resume = resume_service.create_resume_record(
-                        candidate_id=candidate_id,
-                        file_name=uploaded_file.name,
-                        file_path=file_path,
-                        extracted_text=extracted_text
-                    )
-                    
-                    # Extract information using LLM
-                    extraction_result = llm_service.extract_information_from_resume(
-                        resume_text=extracted_text,
-                        candidate_id=candidate_id,
-                        resume_id=resume.id
-                    )
-                    extraction_service.save_pending_extraction(extraction_result)
+                    process_uploaded_resume(candidate_id, uploaded_file)
                     
                     st.success(
-                        "Resume processed. Open Review Information from the sidebar "
-                        "to review, correct, and approve the extracted information."
+                        "Resume processed. Review and confirm the extracted "
+                        "information from Candidate Profile."
                     )
-                    st.json(extraction_result["extracted_data"])
                 except (ValueError, OSError, SQLAlchemyError) as e:
                     st.error(f"Error processing resume: {str(e)}")
     else:

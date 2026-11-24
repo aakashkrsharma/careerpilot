@@ -42,10 +42,11 @@ The runtime packages are pinned in the single canonical manifest. Installation f
 
 Install Ollama from https://ollama.com and ensure the service is running locally.
 
-Then pull a model matching the app default:
+The app defaults to `qwen3-coder:30b`, which should appear in `ollama list`.
+If it is not installed, pull it:
 
 ```bash
-ollama pull llama3
+ollama pull qwen3-coder:30b
 ```
 
 ## 5. Configure environment variables
@@ -54,10 +55,12 @@ Set optional environment variables before starting the app to choose the Ollama 
 
 ```bash
 export OLLAMA_BASE_URL=http://localhost:11434
-export OLLAMA_MODEL=llama3
+export OLLAMA_MODEL=qwen3-coder:30b
 ```
 
-`OLLAMA_MODEL` defaults to `llama3`. Set it to the exact model tag shown by `ollama list` if you use another installed model. `OLLAMA_BASE_URL` defaults to `http://localhost:11434` and configures the Ollama client.
+`OLLAMA_MODEL` defaults to `qwen3-coder:30b`. Set it to another exact model
+tag shown by `ollama list` if you prefer a different installed model.
+`OLLAMA_BASE_URL` defaults to `http://localhost:11434`.
 
 Job discovery uses outbound HTTPS only when you register, terms-approve, and
 enable a source. Most public connectors do not require credentials. Optional
@@ -78,10 +81,14 @@ USAJOBS is disabled by default; Remotive is opt-in and rate-limited. See
 From the project root (the directory containing `app/` and `requirements.txt`), launch the Streamlit UI:
 
 ```bash
-python -m streamlit run app/main.py
+cd /home/ubuntu/projects/careerpilot
+.venv/bin/python -m streamlit run app/main.py
 ```
 
-The app's package imports and relative data paths expect the project root to be the working directory; do not launch it from inside `app/`.
+If the virtual environment is activated, `python -m streamlit run app/main.py`
+also works. The entry point adds the project root to Python's import path, but
+starting from the project root ensures the database and local data folders are
+created in the expected locations.
 
 The app should open in the default Streamlit browser or be available at:
 
@@ -120,9 +127,9 @@ On first launch, the app initializes the SQLite database and creates the require
 
 ### `ModuleNotFoundError: No module named 'app'`
 
-- change to the project root (the directory containing `app/` and `requirements.txt`)
-- activate the project's virtual environment
-- run `python -m streamlit run app/main.py` from that directory, not from inside `app/`
+- From the repository root, run `.venv/bin/python -m streamlit run app/main.py`.
+- Confirm `.venv` exists and dependencies were installed with `.venv/bin/python -m pip install -r requirements.txt`.
+- Avoid running `python app/main.py`; start it through Streamlit as shown above.
 
 ## Current installation assumption
 

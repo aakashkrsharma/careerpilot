@@ -1,11 +1,15 @@
 """Local job discovery input, storage, filtering, and deduplication."""
 import hashlib
+import json
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
+
+import httpx
 
 from app.database.database import SessionLocal
 from app.database.models import Job, JobSource, JobSourceListing
@@ -308,6 +312,64 @@ class JobService:
             if job is not None:
                 db.expunge(job)
             return job
+
+    def import_job_from_url(self, url: str) -> Job:
+        normalized = self.normalize_source_url(url)
+        if normalized is None:
+            raise ValueError("A complete http or https URL is required.")
+        response = httpx.get(
+            normalized,
+            timeout=15.0,
+            follow_redirects=False,
+            headers={"User-Agent": "CareerPilot/1.0 (respectful job import)"},
+        )
+        response.raise_for_status()
+        html = response.text[:2_000_000]
+        title = None
+        company = None
+        description = None
+        location = None
+        match = re.search(
+            r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+            html,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if match:
+            try:
+                payload = json.loads(match.group(1).strip())
+                if isinstance(payload, list):
+                    payload = payload[0] if payload else {}
+                if payload.get("@type") == "JobPosting":
+                    title = payload.get("title")
+                    company = (payload.get("hiringOrganization") or {}).get("name")
+                    description = payload.get("description")
+                    location = (
+                        (payload.get("jobLocation") or {}).get("address", {}).get("addressLocality")
+                        if isinstance(payload.get("jobLocation"), dict)
+                        else None
+                    )
+            except (json.JSONDecodeError, AttributeError):
+                pass
+        if not title:
+            title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+            title = title_match.group(1).strip() if title_match else "Imported job"
+        if not company:
+            company = "Unknown company"
+        if not description:
+            description = "Imported from public URL. Review and edit before use."
+        return self.create_job(
+            title=title,
+            company=company,
+            source="manual_url_import",
+            source_url=normalized,
+            location=location,
+            work_mode=None,
+            description=description,
+            required_skills=None,
+            minimum_experience=None,
+            salary_min=None,
+            salary_max=None,
+        )
 
     def get_job_source_listings(self, job_id: int) -> list[JobListingReference]:
         with SessionLocal() as db:

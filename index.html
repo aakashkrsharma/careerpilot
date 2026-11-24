@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meet Dave — Animated Cartoon Short</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #14121d;
+    color: #f4f1ea;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 12px;
+    gap: 10px;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+  }
+  button, .file-btn {
+    background: #ffbe0b;
+    color: #181425;
+    border: 3px solid #181425;
+    border-radius: 10px;
+    padding: 9px 16px;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #000;
+    transition: transform 0.08s;
+  }
+  button:hover, .file-btn:hover { background: #ffd147; }
+  button:active, .file-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  input[type="file"] { display: none; }
+  .status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #d8d4e6;
+    text-align: center;
+  }
+  .badge {
+    background: #272338;
+    border: 1px solid #453e63;
+    padding: 3px 10px;
+    border-radius: 999px;
+    color: #ffe600;
+  }
+  canvas {
+    height: min(78vh, 860px);
+    width: auto;
+    aspect-ratio: 9 / 16;
+    border: 4px solid #2c2640;
+    border-radius: 14px;
+    background: #000;
+    box-shadow: 0 14px 40px rgba(0,0,0,0.65);
+  }
+</style>
+</head>
+<body>
+  <div class="controls">
+    <label class="file-btn">
+      Choose voice file
+      <input type="file" id="voiceInput" accept="audio/*">
+    </label>
+    <button id="playBtn">Play</button>
+    <button id="saveBtn">Save video</button>
+  </div>
+  <div class="status-bar">
+    <span id="mainStatus">Choose your voice file, then press Play or Save video</span>
+    <span class="badge" id="timingStatus">Voice timing: estimated</span>
+  </div>
+  <canvas id="stage" width="1080" height="1920"></canvas>
+
+<script>
+(() => {
+  const W = 1080, H = 1920, GROUND_Y = Math.round(H * 0.70); // 1344
+  const OUTLINE = '#1b1624';
+  const SCRIPT = "Meet Dave. Dave was too sleepy to read labels this morning, so he poured ghost-pepper hot sauce into his coffee! One sip later, Dave became a human rocket. He typed a thousand emails, finished ten reports, and organized the entire office! By noon, Dave was officially out of fuel.";
+
+  // Seeded deterministic PRNG
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function() {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // 1. Split script into chunks at every punctuation mark (, . ? ! : ;)
+  function splitChunks(text) {
+    const raw = text.match(/[^,.?!:;]+[,.?!:;]*/g) || [text];
+    return raw.map(s => s.trim()).filter(Boolean).map((chunkText, idx) => {
+      const words = chunkText.split(/\s+/).filter(Boolean);
+      let letters = 0;
+      for (const ch of chunkText) {
+        if (/[a-zA-Z]/.test(ch)) letters += 1;
+        else if (/[0-9]/.test(ch)) letters += 3;
+      }
+      return { idx, text: chunkText, words, letters, weight: letters + words.length };
+    });
+  }
+
+  function wordLetterWeight(w) {
+    let c = 0;
+    for (const ch of w) {
+      if (/[a-zA-Z]/.test(ch)) c += 1;
+      else if (/[0-9]/.test(ch)) c += 3;
+    }
+    return c + 1;
+  }
+
+  const CHUNKS = splitChunks(SCRIPT);
+
+  // 2. Measure stretches of speech from AudioBuffer (pauses < -35 dB lasting >= 0.25s)
+  function extractStretches(audioBuffer) {
+    const sr = audioBuffer.sampleRate;
+    const len = audioBuffer.length;
+    const ch0 = audioBuffer.getChannelData(0);
+    const ch1 = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
+    const win = Math.max(1, Math.floor(sr * 0.01)); // 10ms window
+    const numWin = Math.floor(len / win);
+    const thresh = Math.pow(10, -35 / 20); // -35 dB linear RMS
+    const isSilent = new Uint8Array(numWin);
+
+    for (let i = 0; i < numWin; i++) {
+      let sum = 0;
+      const base = i * win;
+      for (let j = 0; j < win; j++) {
+        const s = ch1 ? 0.5 * (ch0[base + j] + ch1[base + j]) : ch0[base + j];
+        sum += s * s;
+      }
+      const rms = Math.sqrt(sum / win);
+      if (rms < thresh) isSilent[i] = 1;
+    }
+
+    const minPauseWins = Math.ceil(0.25 / 0.01);
+    const pauses = [];
+    let i = 0;
+    while (i < numWin) {
+      if (isSilent[i]) {
+        let j = i;
+        while (j < numWin && isSilent[j]) j++;
+        if (j - i >= minPauseWins) {
+          pauses.push([i * 0.01, j * 0.01]);
+        }
+        i = j;
+      } else {
+        i++;
+      }
+    }
+
+    const totalDur = audioBuffer.duration;
+    const stretches = [];
+    let cursor = 0;
+    for (const [pStart, pEnd] of pauses) {
+      if (pStart - cursor > 0.04) {
+        stretches.push([cursor, pStart]);
+      }
+      cursor = pEnd;
+    }
+    if (totalDur - cursor > 0.04) {
+      stretches.push([cursor, totalDur]);
+    }
+    return stretches.length ? stretches : [[0, Math.max(0.5, totalDur)]];
+  }
+
+  // Estimated stretches before voice file is loaded (~19.8s)
+  const ESTIMATED_STRETCHES = [
+    [0.25, 1.15],   // Meet Dave.
+    [1.45, 4.15],   // Dave was too sleepy to read labels this morning,
+    [4.45, 7.65],   // so he poured ghost-pepper hot sauce into his coffee!
+    [8.00, 9.10],   // One sip later,
+    [9.35, 11.20],  // Dave became a human rocket.
+    [11.55, 13.25], // He typed a thousand emails,
+    [13.50, 14.95], // finished ten reports,
+    [15.20, 17.05], // and organized the entire office!
+    [17.40, 18.25], // By noon,
+    [18.50, 20.55]  // Dave was officially out of fuel.
+  ];
+  const ESTIMATED_DURATION = 21.2;
+
+  // 3 & 4. Dynamic Programming alignment of chunks to stretches + word spreading
+  function alignWords(chunks, stretches) {
+    const N = chunks.length;
+    const M = stretches.length;
+    const totalWeight = chunks.reduce((s, c) => s + c.weight, 0);
+    const totalSpeak = stretches.reduce((s, st) => s + (st[1] - st[0]), 0);
+    const avgRate = totalWeight / Math.max(0.001, totalSpeak);
+
+    const INF = 1e18;
+    const dp = Array.from({ length: N + 1 }, () => new Float64Array(M + 1).fill(INF));
+    const parent = Array.from({ length: N + 1 }, () => Array(M + 1).fill(null));
+    dp[0][0] = 0;
+
+    function stepCost(wSum, secSum) {
+      if (secSum <= 0.001) return INF;
+      const rate = wSum / secSum;
+      return Math.abs(Math.log(rate / avgRate)) * secSum;
+    }
+
+    for (let i = 0; i <= N; i++) {
+      for (let j = 0; j <= M; j++) {
+        if (dp[i][j] >= INF * 0.5) continue;
+        // Option A: 1..4 chunks into 1 stretch
+        if (j + 1 <= M) {
+          const sec = stretches[j][1] - stretches[j][0];
+          let wSum = 0;
+          for (let c = 1; c <= 4 && i + c <= N; c++) {
+            wSum += chunks[i + c - 1].weight;
+            const cost = dp[i][j] + stepCost(wSum, sec);
+            if (cost < dp[i + c][j + 1]) {
+              dp[i + c][j + 1] = cost;
+              parent[i + c][j + 1] = [i, j];
+            }
+          }
+        }
+        // Option B: 1 chunk across 1..3 stretches
+        if (i + 1 <= N) {
+          const wSum = chunks[i].weight;
+          let secSum = 0;
+          for (let s = 1; s <= 3 && j + s <= M; s++) {
+            secSum += stretches[j + s - 1][1] - stretches[j + s - 1][0];
+            if (s === 1) continue; // already covered in Option A
+            const cost = dp[i][j] + stepCost(wSum, secSum);
+            if (cost < dp[i + 1][j + s]) {
+              dp[i + 1][j + s] = cost;
+              parent[i + 1][j + s] = [i, j];
+            }
+          }
+        }
+      }
+    }
+
+    // Backtrack (if exact DP unreachable for extreme stretch counts, fallback to proportional mapping)
+    const steps = [];
+    if (dp[N][M] < INF * 0.5) {
+      let ci = N, cj = M;
+      while (ci > 0 || cj > 0) {
+        const [pi, pj] = parent[ci][cj];
+        steps.push({ c0: pi, c1: ci, s0: pj, s1: cj });
+        ci = pi; cj = pj;
+      }
+      steps.reverse();
+    } else {
+      steps.push({ c0: 0, c1: N, s0: 0, s1: M });
+    }
+
+    // Spread words inside each step in proportion to (letters + 1), skipping pauses
+    const wordsOut = [];
+    for (const st of steps) {
+      const stepWords = [];
+      for (let c = st.c0; c < st.c1; c++) {
+        for (const w of chunks[c].words) {
+          stepWords.push({
+            word: w,
+            clean: w.toLowerCase().replace(/[^a-z0-9]/g, ''),
+            chunkIdx: c,
+            weight: wordLetterWeight(w)
+          });
+        }
+      }
+      const totalStepW = stepWords.reduce((a, b) => a + b.weight, 0);
+      const segs = [];
+      let totalSegSec = 0;
+      for (let s = st.s0; s < st.s1; s++) {
+        const d = stretches[s][1] - stretches[s][0];
+        segs.push({ start: stretches[s][0], dur: d });
+        totalSegSec += d;
+      }
+
+      // Helper to map speaking offset [0..totalSegSec] to real timeline skipping pauses
+      function mapSpeakTime(u) {
+        let rem = Math.max(0, Math.min(totalSegSec, u));
+        for (let k = 0; k < segs.length; k++) {
+          if (rem <= segs[k].dur || k === segs.length - 1) {
+            return segs[k].start + rem;
+          }
+          rem -= segs[k].dur;
+        }
+        return segs[segs.length - 1].start + segs[segs.length - 1].dur;
+      }
+
+      let accW = 0;
+      for (const sw of stepWords) {
+        const u0 = (accW / totalStepW) * totalSegSec;
+        accW += sw.weight;
+        const u1 = (accW / totalStepW) * totalSegSec;
+        wordsOut.push({
+          word: sw.word,
+          clean: sw.clean,
+          chunkIdx: sw.chunkIdx,
+          start: mapSpeakTime(u0),
+          end: mapSpeakTime(u1)
+        });
+      }
+    }
+    return wordsOut;
+  }
+
+  let WORD_TABLE = alignWords(CHUNKS, ESTIMATED_STRETCHES);
+  window.DURATION = ESTIMATED_DURATION;
+  let loadedAudioBuffer = null;
+
+  function findWordTime(cleanTarget, fallbackIdx = 0) {
+    const found = WORD_TABLE.find(w => w.clean === cleanTarget);
+    return found ? found.start : (WORD_TABLE[fallbackIdx]?.start || 0);
+  }
+
+  function chunkSpan(cStart, cEnd) {
+    const first = WORD_TABLE.find(w => w.chunkIdx >= cStart);
+    const after = WORD_TABLE.find(w => w.chunkIdx > cEnd);
+    const t0 = cStart === 0 ? 0 : (first ? first.start - 0.08 : 0);
+    const t1 = after ? after.start - 0.08 : window.DURATION;
+    return [Math.max(0, t0), Math.max(t0 + 0.1, t1)];
+  }
+
+  // ==================== WEBAUDIO SYNTHESIS (12 FULL LAYERED SFX) ====================
+  window.scheduleSfx = function(audioCtx, destination, startTime) {
+    const sr = audioCtx.sampleRate;
+    const rng = mulberry32(42019);
+    const noiseLen = Math.ceil(sr * 2.5);
+    const noiseBuf = audioCtx.createBuffer(1, noiseLen, sr);
+    const nd = noiseBuf.getChannelData(0);
+    for (let i = 0; i < noiseLen; i++) nd[i] = rng() * 2 - 1;
+
+    function playNoise(t, dur, filterType, fStart, fEnd, q, gainPeak, attack = 0.01) {
+      const src = audioCtx.createBufferSource();
+      src.buffer = noiseBuf;
+      const flt = audioCtx.createBiquadFilter();
+      flt.type = filterType;
+      flt.frequency.setValueAtTime(fStart, t);
+      if (fEnd !== fStart) flt.frequency.exponentialRampToValueAtTime(Math.max(20, fEnd), t + dur);
+      flt.Q.value = q;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(gainPeak, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(flt); flt.connect(g); g.connect(destination);
+      src.start(t); src.stop(t + dur + 0.02);
+    }
+
+    function playTone(t, dur, type, f0, f1, gainPeak, attack = 0.01) {
+      const osc = audioCtx.createOscillator();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f0, t);
+      if (f1 !== f0) osc.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(gainPeak, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(g); g.connect(destination);
+      osc.start(t); osc.stop(t + dur + 0.02);
+    }
+
+    // 1. Pop & chime on "Dave."
+    const t1 = startTime + findWordTime('dave', 1);
+    playTone(t1, 0.18, 'sine', 320, 740, 0.22, 0.005);
+    playTone(t1 + 0.05, 0.35, 'triangle', 880, 880, 0.14, 0.01);
+
+    // 2. Sleepy yawn slide on "sleepy"
+    const t2 = startTime + findWordTime('sleepy', 5);
+    playTone(t2, 0.65, 'sine', 420, 190, 0.16, 0.06);
+    playNoise(t2, 0.6, 'bandpass', 600, 300, 3, 0.08, 0.08);
+
+    // 3. Bottle pop & liquid glugs on "poured"
+    const t3 = startTime + findWordTime('poured', 13);
+    playTone(t3, 0.08, 'sine', 240, 620, 0.24, 0.004);
+    for (let k = 0; k < 4; k++) {
+      playTone(t3 + 0.09 + k * 0.11, 0.09, 'sine', 300 + k * 45, 540 + k * 50, 0.18, 0.008);
+    }
+
+    // 4. Fiery spice sizzle on "hot"
+    const t4 = startTime + findWordTime('hot', 15);
+    playNoise(t4, 0.55, 'highpass', 3200, 1800, 1.5, 0.22, 0.01);
+    playTone(t4, 0.3, 'sawtooth', 140, 75, 0.14, 0.01);
+
+    // 5. Slurp + kettle steam whistle on "sip"
+    const t5 = startTime + findWordTime('sip', 21);
+    playNoise(t5, 0.22, 'bandpass', 900, 2400, 4, 0.22, 0.01);
+    playTone(t5 + 0.22, 0.55, 'sine', 1150, 1950, 0.2, 0.03);
+    playNoise(t5 + 0.22, 0.6, 'bandpass', 2600, 3400, 5, 0.18, 0.03);
+
+    // 6. Sonic boom + rocket thruster on "rocket."
+    const t6 = startTime + findWordTime('rocket', 27);
+    playTone(t6, 0.45, 'sine', 150, 36, 0.36, 0.005);
+    playNoise(t6, 1.15, 'lowpass', 950, 280, 1.2, 0.30, 0.02);
+    playTone(t6 + 0.05, 0.9, 'sawtooth', 110, 260, 0.14, 0.04);
+
+    // 7. Rapid keyboard clatter on "typed"
+    const t7 = startTime + findWordTime('typed', 29);
+    for (let k = 0; k < 14; k++) {
+      const tk = t7 + k * 0.055;
+      playNoise(tk, 0.035, 'bandpass', 2200 + (k % 3) * 400, 1600, 3, 0.18, 0.002);
+      playTone(tk, 0.03, 'triangle', 900 + (k % 4) * 140, 400, 0.1, 0.002);
+    }
+
+    // 8. Heavy stamp & report thud on "reports,"
+    const t8 = startTime + findWordTime('reports', 35);
+    playTone(t8, 0.22, 'sine', 190, 55, 0.3, 0.004);
+    playNoise(t8, 0.16, 'bandpass', 1400, 800, 2, 0.24, 0.004);
+
+    // 9. Organizing whoosh & drawer slam on "organized"
+    const t9 = startTime + findWordTime('organized', 37);
+    playNoise(t9, 0.42, 'bandpass', 400, 2200, 2.2, 0.22, 0.02);
+    playTone(t9 + 0.38, 0.24, 'square', 140, 48, 0.22, 0.005);
+
+    // 10. Noon clock chime on "noon,"
+    const t10 = startTime + findWordTime('noon', 42);
+    playTone(t10, 0.95, 'sine', 784, 780, 0.22, 0.006);
+    playTone(t10, 0.75, 'triangle', 1568, 1560, 0.10, 0.006);
+
+    // 11. Deflating balloon sputter on "officially"
+    const t11 = startTime + findWordTime('officially', 45);
+    playTone(t11, 0.65, 'sawtooth', 520, 110, 0.16, 0.02);
+    playNoise(t11, 0.6, 'bandpass', 1200, 320, 6, 0.14, 0.02);
+
+    // 12. Desk faceplant thud & mug clink on "fuel."
+    const t12 = startTime + findWordTime('fuel', 48);
+    playTone(t12, 0.32, 'sine', 135, 38, 0.35, 0.005);
+    playNoise(t12, 0.22, 'lowpass', 500, 140, 1.5, 0.24, 0.005);
+    playTone(t12 + 0.28, 0.25, 'sine', 1320, 1280, 0.14, 0.004);
+  };
+
+  // ==================== CARTOON DRAWING HELPERS ====================
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function lerp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
+  function easeOut(t) { t = clamp(t, 0, 1); return 1 - (1 - t) * (1 - t); }
+  function easeInOut(t) { t = clamp(t, 0, 1); return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+  function strokeFill(ctx, fill, lw = 6) {
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = lw;
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  }
+
+  function drawGroundShadow(ctx, x, y, rx, ry = 18) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(20, 14, 34, 0.28)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCloud(ctx, x, y, s, color = 'rgba(255,255,255,0.85)') {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, 36 * s, 0, Math.PI * 2);
+    ctx.arc(x + 34 * s, y - 10 * s, 44 * s, 0, Math.PI * 2);
+    ctx.arc(x + 74 * s, y, 34 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Solve 2-bone limb joint so human knees ALWAYS bend forward (+facing) and elbows bend naturally
+  function solveJoint(ax, ay, bx, by, l1, l2, bendDir) {
+    const dx = bx - ax, dy = by - ay;
+    const maxD = (l1 + l2) * 0.995;
+    const minD = Math.abs(l1 - l2) + 2;
+    const d = clamp(Math.hypot(dx, dy), minD, maxD);
+    const ux = dx / (Math.hypot(dx, dy) || 1);
+    const uy = dy / (Math.hypot(dx, dy) || 1);
+    const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+    const h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+    // Perpendicular vector pointing in bendDir (+1 = right/forward when facing right, -1 = left/forward when facing left)
+    // If limb goes roughly downward (uy > 0), (-uy, ux) points +x (right).
+    const px = -uy * bendDir;
+    const py = ux * bendDir;
+    return { x: ax + a * ux + h * px, y: ay + a * uy + h * py };
+  }
+
+  // Reusable bold cartoon character renderer (Dave + coworkers)
+  function drawPerson(ctx, opts) {
+    const {
+      x, y, scale = 1, facing = 1,
+      walkPhase = 0, runSpeed = 0, // runSpeed 0 = standing, 1 = walk, 2 = fast run
+      lean = 0, squash = 1,
+      shirt = '#ffffff', pants = '#2c3e50', tie = '#e63946',
+      skin = '#f7c59f', skinShade = '#e0a47b', hair = '#4a2c18',
+      mood = 'sleepy', // 'sleepy', 'shocked', 'rocket', 'hyper', 'ko', 'coworker'
+      armPose = 'idle', // 'idle', 'reach', 'sip', 'rocket', 'type', 'cheer', 'ko'
+      blurHands = 0,
+      t = 0
+    } = opts;
+
+    ctx.save();
+    ctx.translate(x, y);
+    drawGroundShadow(ctx, 0, 0, 74 * scale, 18 * scale);
+
+    ctx.scale(scale, scale);
+    const hipY = -275 * squash;
+    const shoulderY = hipY - 195 * squash;
+
+    // Legs (Knees ALWAYS bend in `facing` direction!)
+    const thighL = 132, shinL = 143;
+    const hipX = 0;
+
+    function drawLeg(phaseOffset, isFront) {
+      let footX = (isFront ? 14 : -14) * facing;
+      let footY = 0;
+      if (runSpeed > 0.05) {
+        const ph = (walkPhase + phaseOffset) % (Math.PI * 2);
+        const stride = runSpeed > 1.3 ? 115 : 68;
+        // Ground contact phase [0..PI]: foot slides backward (-facing) from +stride to -stride!
+        // Swing phase [PI..2PI]: lifted foot swings forward (+facing) from -stride to +stride!
+        if (ph < Math.PI) {
+          const u = ph / Math.PI;
+          footX = facing * lerp(stride, -stride, u);
+          footY = 0;
+        } else {
+          const u = (ph - Math.PI) / Math.PI;
+          footX = facing * lerp(-stride, stride, u);
+          footY = -Math.sin(u * Math.PI) * (runSpeed > 1.3 ? 72 : 36);
+        }
+      }
+      const knee = solveJoint(hipX, hipY, footX, footY - 18, thighL, shinL, facing);
+
+      // Leg stroke
+      ctx.lineWidth = 28;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = OUTLINE;
+      ctx.beginPath();
+      ctx.moveTo(hipX, hipY); ctx.lineTo(knee.x, knee.y); ctx.lineTo(footX, footY - 18);
+      ctx.stroke();
+
+      ctx.lineWidth = 17;
+      ctx.strokeStyle = isFront ? pants : '#1f2d3d';
+      ctx.beginPath();
+      ctx.moveTo(hipX, hipY); ctx.lineTo(knee.x, knee.y); ctx.lineTo(footX, footY - 18);
+      ctx.stroke();
+
+      // Shoe
+      ctx.save();
+      ctx.translate(footX, footY);
+      ctx.beginPath();
+      ctx.roundRect(-22 + (facing > 0 ? 0 : -24), -24, 68, 24, [12, 12, 4, 4]);
+      strokeFill(ctx, isFront ? '#22202e' : '#16141f', 5);
+      ctx.restore();
+    }
+
+    drawLeg(Math.PI, false);
+    drawLeg(0, true);
+
+    // Torso pivot at hip
+    ctx.save();
+    ctx.translate(hipX, hipY);
+    ctx.rotate(lean * facing);
+
+    if (mood === 'ko') {
+      // Slumped flat onto desk at y ~ -180
+      ctx.rotate(facing * 1.35);
+    }
+
+    // Torso body (with darker shaded back side)
+    const torsoH = 205 * squash;
+    const torsoW = 116 / Math.sqrt(squash);
+    ctx.beginPath();
+    ctx.roundRect(-torsoW / 2, -torsoH, torsoW, torsoH + 14, 34);
+    strokeFill(ctx, shirt, 6);
+
+    // Shaded side
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = 'rgba(25, 20, 45, 0.14)';
+    ctx.fillRect(facing > 0 ? -torsoW / 2 : 0, -torsoH, torsoW / 2, torsoH + 20);
+    ctx.restore();
+
+    // Tie
+    if (tie) {
+      const tx = facing * 18;
+      ctx.beginPath();
+      ctx.moveTo(tx - 10, -torsoH + 26);
+      ctx.lineTo(tx + 10, -torsoH + 26);
+      ctx.lineTo(tx + 15, -torsoH + 125);
+      ctx.lineTo(tx, -torsoH + 146);
+      ctx.lineTo(tx - 15, -torsoH + 125);
+      ctx.closePath();
+      strokeFill(ctx, tie, 4);
+    }
+
+    // Head
+    const headY = -torsoH - 68;
+    const headX = facing * 8;
+    ctx.save();
+    ctx.translate(headX, headY);
+
+    // Hair back spikes
+    const spikeUp = (mood === 'shocked' || mood === 'rocket' || mood === 'hyper') ? 26 : 0;
+    ctx.beginPath();
+    ctx.moveTo(-48, -22);
+    ctx.lineTo(-64 - spikeUp * 0.5, -52 - spikeUp);
+    ctx.lineTo(-28, -58 - spikeUp * 0.6);
+    ctx.lineTo(-18, -86 - spikeUp * 1.2);
+    ctx.lineTo(10, -64 - spikeUp * 0.7);
+    ctx.lineTo(36, -84 - spikeUp);
+    ctx.lineTo(48, -42);
+    ctx.closePath();
+    strokeFill(ctx, hair, 5);
+
+    // Face shape
+    const faceFill = mood === 'shocked' ? '#ff6b5b' : skin;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 56, 62, 0, 0, Math.PI * 2);
+    strokeFill(ctx, faceFill, 6);
+
+    // Nose
+    ctx.beginPath();
+    ctx.arc(facing * 52, 4, 13, -1.2, 1.3);
+    strokeFill(ctx, faceFill, 5);
+
+    // Eyes & Blinking
+    const blink = (Math.sin(t * 2.7) > 0.96) && mood !== 'shocked' && mood !== 'rocket';
+    const eyeX = facing * 24;
+    const eyeY = -12;
+    if (mood === 'ko' || blink) {
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = OUTLINE;
+      ctx.beginPath();
+      ctx.moveTo(eyeX - 14, eyeY);
+      ctx.lineTo(eyeX + 14, eyeY + (mood === 'ko' ? 5 : 0));
+      ctx.stroke();
+    } else if (mood === 'sleepy') {
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY, 15, 0, Math.PI * 2);
+      strokeFill(ctx, '#fff', 4);
+      ctx.beginPath();
+      ctx.arc(eyeX + facing * 4, eyeY + 3, 5, 0, Math.PI * 2);
+      ctx.fillStyle = OUTLINE; ctx.fill();
+      // Heavy droopy eyelid
+      ctx.beginPath();
+      ctx.ellipse(eyeX, eyeY - 6, 16, 10, 0, Math.PI, Math.PI * 2);
+      strokeFill(ctx, skinShade, 4);
+    } else {
+      // Wide shocked / hyper eyes
+      const r = mood === 'shocked' ? 21 : 17;
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY, r, 0, Math.PI * 2);
+      strokeFill(ctx, '#fff', 4);
+      ctx.beginPath();
+      ctx.arc(eyeX + facing * 5, eyeY, 6, 0, Math.PI * 2);
+      ctx.fillStyle = OUTLINE; ctx.fill();
+    }
+
+    // Mouth
+    const mx = facing * 22, my = 28;
+    if (mood === 'shocked') {
+      ctx.beginPath();
+      ctx.ellipse(mx, my, 18, 24, 0, 0, Math.PI * 2);
+      strokeFill(ctx, '#6b0f1a', 4);
+    } else if (mood === 'rocket' || mood === 'hyper') {
+      ctx.beginPath();
+      ctx.arc(mx - facing * 4, my - 6, 20, 0.1, Math.PI - 0.1);
+      ctx.closePath();
+      strokeFill(ctx, '#fff', 4);
+    } else if (mood === 'ko') {
+      ctx.beginPath();
+      ctx.ellipse(mx, my + 4, 12, 8, 0.2, 0, Math.PI * 2);
+      strokeFill(ctx, '#8c2d38', 4);
+    } else {
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = OUTLINE;
+      ctx.beginPath();
+      ctx.moveTo(mx - 12, my);
+      ctx.quadraticCurveTo(mx, my - 5, mx + 14, my + 2);
+      ctx.stroke();
+    }
+    ctx.restore(); // end head
+
+    // Front Arm
+    const shX = 0, shY = -torsoH + 34;
+    let handX = facing * 20, handY = -45;
+    if (armPose === 'reach') {
+      handX = facing * 135; handY = -torsoH + 42;
+    } else if (armPose === 'sip') {
+      handX = facing * 74; handY = -torsoH - 36;
+    } else if (armPose === 'rocket') {
+      handX = facing * 175; handY = -torsoH - 25;
+    } else if (armPose === 'type') {
+      handX = facing * 115;
+      handY = -torsoH + 75 + Math.sin(t * 48) * 18;
+    } else if (armPose === 'cheer') {
+      handX = facing * 45; handY = -torsoH - 95 + Math.sin(t * 14) * 12;
+    } else if (armPose === 'ko') {
+      handX = facing * 120; handY = -10;
+    }
+
+    if (blurHands > 0) {
+      // Motion blur multi-arms for supersonic typing!
+      for (let b = -2; b <= 2; b++) {
+        ctx.save();
+        ctx.globalAlpha = 0.28;
+        const bx = handX + Math.cos(t * 55 + b) * 28;
+        const by = handY + b * 16;
+        ctx.lineWidth = 18;
+        ctx.strokeStyle = shirt;
+        ctx.beginPath();
+        ctx.moveTo(shX, shY); ctx.lineTo(shX + facing * 55, shY + 45 + b * 10); ctx.lineTo(bx, by);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    const elbow = solveJoint(shX, shY, handX, handY, 82, 82, -facing);
+    ctx.lineWidth = 24;
+    ctx.strokeStyle = OUTLINE;
+    ctx.beginPath(); ctx.moveTo(shX, shY); ctx.lineTo(elbow.x, elbow.y); ctx.lineTo(handX, handY); ctx.stroke();
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = shirt;
+    ctx.beginPath(); ctx.moveTo(shX, shY); ctx.lineTo(elbow.x, elbow.y); ctx.lineTo(handX, handY); ctx.stroke();
+
+    // Hand
+    ctx.beginPath();
+    ctx.arc(handX, handY, 15, 0, Math.PI * 2);
+    strokeFill(ctx, skin, 4);
+
+    ctx.restore(); // end torso
+    ctx.restore(); // end person
+    return { handWorldX: x + facing * 135 * scale, handWorldY: y - 230 * scale };
+  }
+
+  function drawMug(ctx, x, y, angle = 0, fiery = false) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    // Handle
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = OUTLINE;
+    ctx.beginPath(); ctx.arc(24, 0, 14, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+    // Body
+    ctx.beginPath();
+    ctx.roundRect(-22, -26, 44, 52, [4, 4, 12, 12]);
+    strokeFill(ctx, fiery ? '#ff4d2e' : '#f8f9fa', 5);
+    // Coffee top
+    ctx.beginPath();
+    ctx.ellipse(0, -22, 18, 6, 0, 0, Math.PI * 2);
+    ctx.fillStyle = fiery ? '#ff2a00' : '#4a2511';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHotSauceBottle(ctx, x, y, angle = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    // Bottle body
+    ctx.beginPath();
+    ctx.roundRect(-18, -32, 36, 68, 10);
+    strokeFill(ctx, '#e62e2d', 5);
+    // Neck & green cap
+    ctx.beginPath();
+    ctx.rect(-8, -54, 16, 24);
+    strokeFill(ctx, '#e62e2d', 4);
+    ctx.beginPath();
+    ctx.roundRect(-10, -68, 20, 16, 4);
+    strokeFill(ctx, '#2a9d8f', 4);
+    // Yellow label
+    ctx.fillStyle = '#ffe600';
+    ctx.fillRect(-14, -14, 28, 32);
+    ctx.fillStyle = '#1b1624';
+    ctx.font = '900 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('LAVA', 0, 6);
+    ctx.restore();
+  }
+
+  // ==================== SCENES ====================
+  // Scene 0 (Chunks 0-1): Dim Dawn Kitchen — sleepy Dave reaches for hot sauce
+  function drawScene0(ctx, t, localT, p) {
+    // Sky outside window
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#5a6fa8');
+    sky.addColorStop(0.6, '#b8c6e6');
+    sky.addColorStop(1, '#e8dfd5');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    // Kitchen wall & window (Parallax far layer)
+    ctx.fillStyle = '#d9d4e7';
+    ctx.fillRect(0, 0, W, GROUND_Y);
+    ctx.beginPath();
+    ctx.roundRect(120, 380, 420, 440, 18);
+    strokeFill(ctx, '#8ecae6', 7);
+    drawCloud(ctx, 210 + localT * 12, 510, 1.1);
+    drawCloud(ctx, 370 + localT * 8, 610, 0.85);
+    // Window crossbars
+    ctx.lineWidth = 8; ctx.strokeStyle = OUTLINE;
+    ctx.beginPath(); ctx.moveTo(330, 380); ctx.lineTo(330, 820); ctx.moveTo(120, 600); ctx.lineTo(540, 600); ctx.stroke();
+
+    // Floor
+    ctx.fillStyle = '#b59e84';
+    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    ctx.lineWidth = 6; ctx.strokeStyle = OUTLINE;
+    ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
+
+    // Kitchen Counter (Midground)
+    const counterX = 560, counterY = GROUND_Y - 260;
+    ctx.beginPath();
+    ctx.roundRect(counterX, counterY, 440, 260, 12);
+    strokeFill(ctx, '#7f5539', 6);
+    ctx.beginPath();
+    ctx.roundRect(counterX - 16, counterY - 22, 472, 30, 8);
+    strokeFill(ctx, '#ede0d4', 6);
+
+    // Milk carton on counter
+    ctx.beginPath();
+    ctx.roundRect(counterX + 290, counterY - 122, 68, 100, 6);
+    strokeFill(ctx, '#f8f9fa', 5);
+    ctx.fillStyle = '#3a86ff';
+    ctx.fillRect(counterX + 293, counterY - 92, 62, 34);
+
+    // Mug on counter
+    drawMug(ctx, counterX + 95, counterY - 48, 0, false);
+
+    // Dave walking up slowly then reaching for the hot sauce bottle
+    const walkP = clamp(p / 0.45, 0, 1);
+    const daveX = lerp(280, 455, easeOut(walkP));
+    const reach = p > 0.45;
+    drawPerson(ctx, {
+      x: daveX, y: GROUND_Y, scale: 1.38, facing: 1,
+      walkPhase: walkP * Math.PI * 3,
+      runSpeed: walkP < 0.98 ? 0.8 : 0,
+      mood: 'sleepy',
+      armPose: reach ? 'reach' : 'idle',
+      t
+    });
+
+    // Hot sauce bottle: either on counter or lifted by Dave's hand!
+    if (!reach) {
+      drawHotSauceBottle(ctx, counterX + 195, counterY - 58, 0);
+    } else {
+      const lift = easeOut((p - 0.45) / 0.55);
+      const bx = lerp(counterX + 195, daveX + 185, lift);
+      const by = lerp(counterY - 58, GROUND_Y - 320, lift);
+      drawHotSauceBottle(ctx, bx, by, -lift * 0.45);
+    }
+
+    // Floating sleepy Z's
+    ctx.fillStyle = '#4a4e69';
+    ctx.font = '900 44px sans-serif';
+    ctx.fillText('z', daveX - 70, GROUND_Y - 690 - (localT * 25) % 40);
+    ctx.font = '900 32px sans-serif';
+    ctx.fillText('z', daveX - 105, GROUND_Y - 730 - (localT * 25) % 40);
+  }
+
+  // Scene 1 (Chunks 2-3): Kitchen Pour & Fiery Sip Reaction
+  function drawScene1(ctx, t, localT, p) {
+    // Dramatic warm fiery kitchen background
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, p > 0.58 ? '#ff5400' : '#ff9e00');
+    bg.addColorStop(0.65, '#ffbd59');
+    bg.addColorStop(1, '#9c6644');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Cabinets in background
+    ctx.beginPath(); ctx.roundRect(90, 340, 360, 250, 12); strokeFill(ctx, '#bc6c25', 6);
+    ctx.beginPath(); ctx.roundRect(630, 340, 360, 250, 12); strokeFill(ctx, '#bc6c25', 6);
+
+    // Floor & Counter
+    ctx.fillStyle = '#7f5539';
+    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    ctx.lineWidth = 6; ctx.strokeStyle = OUTLINE;
+    ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
+
+    ctx.beginPath(); ctx.roundRect(530, GROUND_Y - 260, 460, 260, 12); strokeFill(ctx, '#6f4518', 6);
+    ctx.beginPath(); ctx.roundRect(514, GROUND_Y - 282, 492, 30, 8); strokeFill(ctx, '#faedcd', 6);
+
+    const pouring = p < 0.56;
+    const daveX = 390;
+
+    drawPerson(ctx, {
+      x: daveX, y: GROUND_Y, scale: 1.44, facing: 1,
+      squash: pouring ? 1 : 1 + Math.sin((p - 0.56) * 45) * 0.06,
+      mood: pouring ? 'sleepy' : 'shocked',
+      armPose: pouring ? 'reach' : 'sip',
+      t
+    });
+
+    if (pouring) {
+      // Tilted hot sauce bottle pouring red stream into mug
+      const pourX = 635, pourY = GROUND_Y - 430;
+      drawHotSauceBottle(ctx, pourX, pourY, 2.25);
+      // Red hot sauce stream
+      const streamProg = clamp(p / 0.25, 0, 1);
+      ctx.strokeStyle = '#e62e2d';
+      ctx.lineWidth = 14;
+      ctx.beginPath();
+      ctx.moveTo(pourX + 38, pourY + 42);
+      ctx.lineTo(pourX + 38, lerp(pourY + 42, GROUND_Y - 325, streamProg));
+      ctx.stroke();
+
+      drawMug(ctx, pourX + 38, GROUND_Y - 308, 0, p > 0.25);
+    } else {
+      // Drinking & steam explosion from ears!
+      drawMug(ctx, daveX + 115, GROUND_Y - 465, -0.45, true);
+      const blast = clamp((p - 0.58) / 0.42, 0, 1);
+      for (let side of [-1, 1]) {
+        for (let k = 0; k < 4; k++) {
+          const dist = (blast * 260 + k * 55) % 280;
+          const r = 18 + (dist / 280) * 34;
+          ctx.save();
+          ctx.globalAlpha = 1 - dist / 290;
+          ctx.beginPath();
+          ctx.arc(daveX + side * (85 + dist), GROUND_Y - 565 - dist * 0.25, r, 0, Math.PI * 2);
+          strokeFill(ctx, '#ffffff', 4);
+          ctx.restore();
+        }
+      }
+    }
+  }
+
+  // Scene 2 (Chunk 4): Office Corridor — Dave becomes a human rocket!
+  function drawScene2(ctx, t, localT, p) {
+    // Bright sunlit office corridor with parallax
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#ffd166');
+    bg.addColorStop(0.7, '#fff3b0');
+    bg.addColorStop(1, '#adb5bd');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Speed lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.lineWidth = 6;
+    for (let i = 0; i < 14; i++) {
+      const ly = 360 + i * 75;
+      const lx = ((W + 400) - ((t * 2400 + i * 290) % (W + 400))) - 200;
+      ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 240, ly); ctx.stroke();
+    }
+
+    // Parallax office doors & framed charts
+    const scrollX = (p * 1400) % 700;
+    for (let k = -1; k < 3; k++) {
+      const dx = k * 700 - scrollX + 140;
+      ctx.beginPath(); ctx.roundRect(dx, GROUND_Y - 460, 210, 460, [14, 14, 0, 0]);
+      strokeFill(ctx, '#e9ecef', 6);
+      ctx.beginPath(); ctx.roundRect(dx + 32, GROUND_Y - 410, 146, 180, 8);
+      strokeFill(ctx, '#a2d2ff', 4);
+    }
+
+    // Floor
+    ctx.fillStyle = '#6c757d';
+    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    ctx.lineWidth = 6; ctx.strokeStyle = OUTLINE;
+    ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
+
+    // Stunned coworker on side watching Dave zoom by
+    const cwX = 860 - p * 220;
+    drawPerson(ctx, {
+      x: cwX, y: GROUND_Y, scale: 1.25, facing: -1,
+      shirt: '#90be6d', pants: '#277da1', tie: '#f9c74f',
+      mood: 'shocked', armPose: 'cheer', t
+    });
+
+    // Flying papers stirred up in Dave's wake
+    for (let i = 0; i < 7; i++) {
+      const px = 160 + ((i * 140 + p * 600) % 760);
+      const py = GROUND_Y - 140 - Math.sin(t * 9 + i) * 160 - i * 35;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(t * 7 + i);
+      ctx.beginPath(); ctx.rect(-22, -16, 44, 32);
+      strokeFill(ctx, '#ffffff', 4);
+      ctx.restore();
+    }
+
+    // Dave flying horizontally like a superhero rocket!
+    const rocketX = lerp(220, 740, easeInOut(p));
+    const rocketY = GROUND_Y - 360 + Math.sin(t * 24) * 16;
+
+    // Rocket flame trail
+    ctx.save();
+    ctx.translate(rocketX - 180, rocketY);
+    for (let f = 0; f < 3; f++) {
+      const flen = 190 + Math.sin(t * 45 + f) * 55 - f * 35;
+      ctx.beginPath();
+      ctx.moveTo(0, -38 + f * 12);
+      ctx.lineTo(-flen, 0);
+      ctx.lineTo(0, 38 - f * 12);
+      ctx.closePath();
+      ctx.fillStyle = f === 0 ? '#ff3b00' : (f === 1 ? '#ff9e00' : '#ffe600');
+      ctx.fill();
+      if (f === 0) { ctx.lineWidth = 5; ctx.strokeStyle = OUTLINE; ctx.stroke(); }
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(rocketX, rocketY);
+    ctx.rotate(Math.PI / 2 - 0.08);
+    drawPerson(ctx, {
+      x: 0, y: 180, scale: 1.32, facing: 1,
+      mood: 'rocket', armPose: 'rocket', t
+    });
+    ctx.restore();
+  }
+
+  // Scene 3 (Chunks 5-7): Busy Office Bullpen — typing emails, stacking reports, organizing office!
+  function drawScene3(ctx, t, localT, p) {
+    // Bright crisp daylight office
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#8ecae6');
+    bg.addColorStop(0.55, '#e0fbfc');
+    bg.addColorStop(1, '#ced4da');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Big office windows with clouds
+    ctx.beginPath(); ctx.roundRect(80, 330, 920, 420, 16); strokeFill(ctx, '#bde0fe', 6);
+    drawCloud(ctx, 220 + localT * 15, 450, 1.2);
+    drawCloud(ctx, 680 + localT * 10, 490, 1.0);
+
+    // Crowd of coworkers in background cheering (when words mention entire office!)
+    const crowd = [
+      { x: 165, shirt: '#f4a261', tie: '#264653', f: 1 },
+      { x: 310, shirt: '#a8dadc', tie: '#e63946', f: 1 },
+      { x: 895, shirt: '#e9c46a', tie: '#2a9d8f', f: -1 }
+    ];
+    for (const c of crowd) {
+      drawPerson(ctx, {
+        x: c.x, y: GROUND_Y - 25, scale: 1.12, facing: c.f,
+        shirt: c.shirt, tie: c.tie, mood: 'hyper', armPose: 'cheer', t
+      });
+    }
+
+    // Floor
+    ctx.fillStyle = '#8d99ae';
+    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    ctx.lineWidth = 6; ctx.strokeStyle = OUTLINE;
+    ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
+
+    // Tall Filing Cabinet on right (organizing folders!)
+    const cabX = 760, cabY = GROUND_Y - 430;
+    ctx.beginPath(); ctx.roundRect(cabX, cabY, 190, 430, 10); strokeFill(ctx, '#6c757d', 6);
+    for (let d = 0; d < 3; d++) {
+      const dy = cabY + 22 + d * 134;
+      ctx.beginPath(); ctx.roundRect(cabX + 18, dy, 154, 114, 6); strokeFill(ctx, '#adb5bd', 4);
+      ctx.fillStyle = OUTLINE; ctx.fillRect(cabX + 75, dy + 48, 40, 12);
+    }
+
+    // Dave typing at supersonic speed at his desk!
+    const daveX = 430;
+    drawPerson(ctx, {
+      x: daveX, y: GROUND_Y, scale: 1.32, facing: 1,
+      squash: 1 + Math.sin(t * 42) * 0.04,
+      mood: 'hyper', armPose: 'type', blurHands: 1, t
+    });
+
+    // Office Desk in front of Dave
+    const deskX = 360, deskY = GROUND_Y - 210;
+    ctx.beginPath(); ctx.roundRect(deskX, deskY, 370, 210, 10); strokeFill(ctx, '#bc6c25', 6);
+    ctx.beginPath(); ctx.roundRect(deskX - 14, deskY - 20, 398, 26, 8); strokeFill(ctx, '#dda15e', 6);
+
+    // Smoking Laptop / Keyboard
+    ctx.beginPath(); ctx.roundRect(deskX + 115, deskY - 82, 95, 62, 6); strokeFill(ctx, '#343a40', 5);
+    // Smoke puffs rising from keyboard
+    for (let s = 0; s < 3; s++) {
+      const sy = deskY - 95 - ((t * 140 + s * 45) % 120);
+      ctx.save();
+      ctx.globalAlpha = 0.7;
+      ctx.beginPath(); ctx.arc(deskX + 160 + Math.sin(t * 10 + s) * 16, sy, 18 + s * 5, 0, Math.PI * 2);
+      strokeFill(ctx, '#f8f9fa', 3);
+      ctx.restore();
+    }
+
+    // Growing Mountain of Reports (grows during middle & end of scene!)
+    const stackCount = Math.min(14, Math.floor(2 + p * 14));
+    for (let k = 0; k < stackCount; k++) {
+      const ry = deskY - 30 - k * 15;
+      ctx.beginPath(); ctx.roundRect(deskX + 245, ry, 108, 15, 3);
+      strokeFill(ctx, k % 2 === 0 ? '#ffffff' : '#fff3b0', 4);
+    }
+
+    // Colored Folders flying neatly from desk into filing cabinet
+    if (p > 0.45) {
+      for (let f = 0; f < 4; f++) {
+        const fp = ((p - 0.45) * 2.5 + f * 0.25) % 1;
+        const fx = lerp(deskX + 290, cabX + 90, easeInOut(fp));
+        const fy = lerp(deskY - 120, cabY + 80 + (f % 3) * 130, fp) - Math.sin(fp * Math.PI) * 140;
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate((1 - fp) * 0.8);
+        ctx.beginPath(); ctx.roundRect(-26, -18, 52, 36, 4);
+        strokeFill(ctx, ['#ffbe0b', '#fb5607', '#ff006e', '#3a86ff'][f], 4);
+        ctx.restore();
+      }
+    }
+  }
+
+  // Scene 4 (Chunks 8-9): Noon Crash — Dave deflates onto his desk, out of fuel!
+  function drawScene4(ctx, t, localT, p) {
+    // Warm golden high-noon lighting
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#f4a261');
+    bg.addColorStop(0.55, '#fae1dd');
+    bg.addColorStop(1, '#d8e2dc');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Wall Clock hitting 12:00 NOON!
+    const clkX = 760, clkY = 520;
+    ctx.beginPath(); ctx.arc(clkX, clkY, 118, 0, Math.PI * 2); strokeFill(ctx, '#ffffff', 8);
+    ctx.beginPath(); ctx.arc(clkX, clkY, 100, 0, Math.PI * 2);
+    ctx.lineWidth = 3; ctx.strokeStyle = '#adb5bd'; ctx.stroke();
+    // Both hands pointing straight up to 12!
+    const minAng = lerp(-0.4, 0, clamp(p / 0.35, 0, 1));
+    ctx.lineWidth = 8; ctx.strokeStyle = OUTLINE;
+    ctx.beginPath(); ctx.moveTo(clkX, clkY); ctx.lineTo(clkX, clkY - 64); ctx.stroke();
+    ctx.lineWidth = 6; ctx.strokeStyle = '#e63946';
+    ctx.beginPath();
+    ctx.moveTo(clkX, clkY);
+    ctx.lineTo(clkX + Math.sin(minAng) * 84, clkY - Math.cos(minAng) * 84);
+    ctx.stroke();
+    ctx.fillStyle = '#e63946'; ctx.font = '900 28px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('12:00', clkX, clkY + 46);
+
+    // Floor
+    ctx.fillStyle = '#9c89b8';
+    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    ctx.lineWidth = 6; ctx.strokeStyle = OUTLINE;
+    ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
+
+    const daveX = 390;
+    const crashed = p > 0.38;
+    drawPerson(ctx, {
+      x: daveX, y: GROUND_Y, scale: 1.38, facing: 1,
+      squash: crashed ? 0.88 : lerp(1.05, 0.9, p / 0.38),
+      mood: crashed ? 'ko' : 'sleepy',
+      armPose: crashed ? 'ko' : 'idle',
+      t
+    });
+
+    // Office Desk in front of Dave (Dave faceplants right onto it!)
+    const deskX = 380, deskY = GROUND_Y - 210;
+    ctx.beginPath(); ctx.roundRect(deskX, deskY, 470, 210, 10); strokeFill(ctx, '#7f5539', 6);
+    ctx.beginPath(); ctx.roundRect(deskX - 16, deskY - 22, 502, 28, 8); strokeFill(ctx, '#b08968', 6);
+
+    // Coffee mug tips over onto its side when Dave crashes!
+    const tip = easeOut(clamp((p - 0.55) / 0.35, 0, 1));
+    drawMug(ctx, deskX + 355, deskY - 46 + tip * 24, tip * (Math.PI / 2), false);
+
+    // Snoring Z's rising from crashed Dave
+    if (crashed) {
+      const zt = (p - 0.38) * 3;
+      ctx.fillStyle = '#3d405b';
+      ctx.font = '900 54px sans-serif';
+      ctx.fillText('Z', daveX + 185, deskY - 75 - (zt * 40) % 70);
+      ctx.font = '900 38px sans-serif';
+      ctx.fillText('z', daveX + 235, deskY - 125 - (zt * 40) % 70);
+    }
+  }
+
+  // ==================== CAPTIONS (1-3 WORDS, UPPER THIRD, <=84% WIDTH, KEYWORD YELLOW) ====================
+  const KEY_WORDS = new Set([
+    'dave', 'sleepy', 'labels', 'ghostpepper', 'hot', 'sauce', 'coffee',
+    'sip', 'human', 'rocket', 'thousand', 'emails', 'ten', 'reports',
+    'organized', 'office', 'noon', 'officially', 'fuel'
+  ]);
+
+  function buildCaptionGroups(ctx, wordTable) {
+    ctx.save();
+    ctx.font = '900 108px system-ui, -apple-system, Segoe UI, sans-serif';
+    const maxW = W * 0.84; // 907px
+    const groups = [];
+    let i = 0;
+    while (i < wordTable.length) {
+      const cIdx = wordTable[i].chunkIdx;
+      let take = 1;
+      for (let k = 2; k <= 3 && i + k <= wordTable.length; k++) {
+        if (wordTable[i + k - 1].chunkIdx !== cIdx) break;
+        const phrase = wordTable.slice(i, i + k).map(w => w.word).join(' ');
+        if (ctx.measureText(phrase).width <= maxW) take = k;
+        else break;
+      }
+      const slice = wordTable.slice(i, i + take);
+      groups.push({
+        words: slice,
+        start: slice[0].start,
+        end: slice[slice.length - 1].end
+      });
+      i += take;
+    }
+    ctx.restore();
+    return groups;
+  }
+
+  function drawCaptions(ctx, t, groups) {
+    // Find active or just-spoken caption group within its chunk
+    let active = null;
+    for (let i = 0; i < groups.length; i++) {
+      const nextStart = i + 1 < groups.length ? groups[i + 1].start : window.DURATION + 1;
+      if (t >= groups[i].start - 0.04 && t < nextStart - 0.02) {
+        active = groups[i];
+        break;
+      }
+    }
+    if (!active) return;
+
+    ctx.save();
+    ctx.font = '900 108px system-ui, -apple-system, Segoe UI, sans-serif';
+    ctx.textBaseline = 'middle';
+
+    // Measure individual words to center the phrase cleanly
+    const spaceW = 28;
+    const widths = active.words.map(w => ctx.measureText(w.word).width);
+    const totalW = widths.reduce((a, b) => a + b, 0) + spaceW * (active.words.length - 1);
+    let curX = (W - totalW) / 2;
+    const capY = 260; // Upper third, well above character heads
+
+    for (let i = 0; i < active.words.length; i++) {
+      const wObj = active.words[i];
+      const spoken = t >= wObj.start - 0.02;
+      const pop = spoken ? 1 + Math.max(0, 1 - (t - wObj.start) / 0.14) * 0.12 : 0.94;
+      const isKey = KEY_WORDS.has(wObj.clean);
+
+      ctx.save();
+      ctx.translate(curX + widths[i] / 2, capY);
+      ctx.scale(pop, pop);
+      ctx.textAlign = 'center';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 18;
+      ctx.strokeStyle = '#14101d';
+      ctx.strokeText(wObj.word, 0, 0);
+      ctx.fillStyle = !spoken ? '#d8d4e6' : (isKey ? '#ffe600' : '#ffffff');
+      ctx.fillText(wObj.word, 0, 0);
+      ctx.restore();
+
+      curX += widths[i] + spaceW;
+    }
+    ctx.restore();
+  }
+
+  // ==================== DETERMINISTIC RENDERER ====================
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  let CAPTION_GROUPS = buildCaptionGroups(ctx, WORD_TABLE);
+
+  window.renderAt = function(t) {
+    const dur = Math.max(0.5, window.DURATION);
+    const time = ((t % dur) + dur) % dur;
+
+    // 5 scenes driven strictly by the aligned word table chunk times
+    const scenes = [
+      { span: chunkSpan(0, 1), fn: drawScene0, punch: 0.72 },
+      { span: chunkSpan(2, 3), fn: drawScene1, punch: 0.62 },
+      { span: chunkSpan(4, 4), fn: drawScene2, punch: 0.50 },
+      { span: chunkSpan(5, 7), fn: drawScene3, punch: 0.68 },
+      { span: chunkSpan(8, 9), fn: drawScene4, punch: 0.58 }
+    ];
+
+    let sIdx = 0;
+    for (let i = 0; i < scenes.length; i++) {
+      if (time >= scenes[i].span[0]) sIdx = i;
+    }
+    const sc = scenes[sIdx];
+    const [t0, t1] = sc.span;
+    const sDur = Math.max(0.1, t1 - t0);
+    const localT = Math.max(0, time - t0);
+    const p = clamp(localT / sDur, 0, 1);
+
+    // Continuous camera motion: slow push-in + comedic punch-in on each gag beat
+    const punchEnv = Math.exp(-Math.pow((p - sc.punch) / 0.16, 2));
+    const zoom = 1.0 + p * 0.055 + punchEnv * 0.085;
+    const panX = Math.sin(p * Math.PI) * (sIdx % 2 === 0 ? -18 : 18);
+    const panY = punchEnv * 38;
+
+    ctx.save();
+    ctx.clearRect(0, 0, W, H);
+    ctx.translate(W / 2 + panX, H / 2 + panY);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-W / 2, -H / 2);
+    sc.fn(ctx, time, localT, p);
+    ctx.restore();
+
+    // Scene cut wipe transition (first 0.18s of scenes 1..4)
+    if (sIdx > 0 && localT < 0.18) {
+      const wp = 1 - easeOut(localT / 0.18);
+      ctx.fillStyle = '#14101d';
+      ctx.fillRect(0, 0, W * wp, H);
+    }
+
+    // Word-synced captions in upper third
+    drawCaptions(ctx, time, CAPTION_GROUPS);
+  };
+
+  // ==================== UI, AUDIO LOADING, PLAYBACK & RECORDING ====================
+  const voiceInput = document.getElementById('voiceInput');
+  const playBtn = document.getElementById('playBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const mainStatus = document.getElementById('mainStatus');
+  const timingStatus = document.getElementById('timingStatus');
+
+  let mode = 'loop'; // 'loop' | 'play' | 'record'
+  let activeAudioCtx = null;
+  let playStartAudioTime = 0;
+  let loopBaseT = null;
+
+  function stopCurrentAudio() {
+    if (activeAudioCtx) {
+      try { activeAudioCtx.close(); } catch (_) {}
+      activeAudioCtx = null;
+    }
+  }
+
+  voiceInput.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    stopCurrentAudio();
+    mode = 'loop';
+    mainStatus.textContent = 'Analyzing voice timing...';
+    try {
+      const arrayBuf = await file.arrayBuffer();
+      const tmpCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const decoded = await tmpCtx.decodeAudioData(arrayBuf);
+      await tmpCtx.close();
+
+      loadedAudioBuffer = decoded;
+      const stretches = extractStretches(decoded);
+      WORD_TABLE = alignWords(CHUNKS, stretches);
+      window.DURATION = decoded.duration;
+      CAPTION_GROUPS = buildCaptionGroups(ctx, WORD_TABLE);
+
+      timingStatus.textContent = 'Voice timing: measured';
+      mainStatus.textContent = 'Choose your voice file, then press Play or Save video';
+    } catch (err) {
+      mainStatus.textContent = 'Could not decode audio file. Try another audio file.';
+    }
+  });
+
+  function startSession(isRecording) {
+    stopCurrentAudio();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    activeAudioCtx = audioCtx;
+    const startTime = audioCtx.currentTime + 0.08;
+    playStartAudioTime = startTime;
+
+    const mixGain = audioCtx.createGain();
+    mixGain.gain.value = 1.0;
+    mixGain.connect(audioCtx.destination);
+
+    let recorder = null;
+    const chunks = [];
+
+    if (isRecording) {
+      const destNode = audioCtx.createMediaStreamDestination();
+      mixGain.connect(destNode);
+      const videoStream = canvas.captureStream(30);
+      const combined = new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...destNode.stream.getAudioTracks()
+      ]);
+
+      const mp4Types = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4'];
+      let chosenMime = '';
+      let ext = 'webm';
+      for (const m of mp4Types) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) {
+          chosenMime = m; ext = 'mp4'; break;
+        }
+      }
+      if (!chosenMime && window.MediaRecorder && MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+        chosenMime = 'video/webm;codecs=vp9,opus';
+      }
+
+      const recOpts = { videoBitsPerSecond: 12_000_000 };
+      if (chosenMime) recOpts.mimeType = chosenMime;
+      recorder = new MediaRecorder(combined, recOpts);
+      recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) chunks.push(ev.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: chosenMime || 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `my-short.${ext}`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        mainStatus.textContent = 'Saved. Check your Downloads folder.';
+        playBtn.disabled = false;
+        saveBtn.disabled = false;
+        mode = 'loop';
+        loopBaseT = null;
+        stopCurrentAudio();
+      };
+      recorder.start();
+    }
+
+    if (loadedAudioBuffer) {
+      const voiceSrc = audioCtx.createBufferSource();
+      voiceSrc.buffer = loadedAudioBuffer;
+      voiceSrc.connect(mixGain);
+      voiceSrc.start(startTime);
+    }
+    window.scheduleSfx(audioCtx, mixGain, startTime);
+
+    return recorder;
+  }
+
+  let activeRecorder = null;
+
+  playBtn.addEventListener('click', () => {
+    mode = 'play';
+    activeRecorder = startSession(false);
+    mainStatus.textContent = 'Playing...';
+  });
+
+  saveBtn.addEventListener('click', () => {
+    playBtn.disabled = true;
+    saveBtn.disabled = true;
+    mode = 'record';
+    activeRecorder = startSession(true);
+  });
+
+  function tick(nowMs) {
+    if (mode === 'loop') {
+      if (loopBaseT === null) loopBaseT = nowMs;
+      const elapsed = (nowMs - loopBaseT) / 1000;
+      window.renderAt(elapsed);
+    } else if (mode === 'play' && activeAudioCtx) {
+      const elapsed = Math.max(0, activeAudioCtx.currentTime - playStartAudioTime);
+      if (elapsed >= window.DURATION) {
+        window.renderAt(window.DURATION - 0.001);
+        stopCurrentAudio();
+        mode = 'loop';
+        loopBaseT = null;
+        mainStatus.textContent = 'Choose your voice file, then press Play or Save video';
+      } else {
+        window.renderAt(elapsed);
+      }
+    } else if (mode === 'record' && activeAudioCtx) {
+      const elapsed = Math.max(0, activeAudioCtx.currentTime - playStartAudioTime);
+      const total = Math.ceil(window.DURATION);
+      const cur = Math.min(total, Math.floor(elapsed));
+      mainStatus.textContent = `Recording... ${cur} / ${total} s. Keep this tab open and in front.`;
+      if (elapsed >= window.DURATION) {
+        window.renderAt(window.DURATION - 0.001);
+        mode = 'finishing';
+        if (activeRecorder && activeRecorder.state !== 'inactive') {
+          activeRecorder.stop();
+        }
+      } else {
+        window.renderAt(elapsed);
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

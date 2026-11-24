@@ -26,6 +26,35 @@ INDIA_DEFAULT_LOCATIONS = (
 )
 
 
+QUICK_START_SOURCES = [
+    ("arbeitnow", "arbeitnow-1", "Arbeitnow Public Jobs", "global_remote", {}),
+    ("jobicy", "jobicy-1", "Jobicy Public Jobs", "global_remote", {}),
+    ("remoteok", "remoteok-1", "Remote OK Public Jobs", "global_remote", {}),
+    ("himalayas", "himalayas-1", "Himalayas Public Jobs", "global_remote", {}),
+    ("weworkremotely", "weworkremotely-1", "We Work Remotely RSS", "global_remote", {}),
+    (
+        "search_engine",
+        "search-engine-1",
+        "Search Engine Portal Discovery",
+        "global_remote",
+        {
+            "sites": [
+                "naukri.com",
+                "linkedin.com/jobs",
+                "instahyre.com",
+                "cutshort.io",
+                "hirist.tech",
+                "in.indeed.com",
+                "foundit.in",
+                "shine.com",
+                "timesjobs.com",
+                "glassdoor.co.in",
+            ]
+        },
+    ),
+]
+
+
 def show_job_discovery_page() -> None:
     st.header("Discover Jobs")
     st.caption(
@@ -33,6 +62,30 @@ def show_job_discovery_page() -> None:
         "Only the search terms and locations you enter are sent to a source; "
         "candidate identity, resume content, and answer-bank data stay local."
     )
+
+    if st.button("Quick start: enable recommended public sources (no login)"):
+        created = 0
+        skipped = 0
+        for connector_type, key, name, region, config in QUICK_START_SOURCES:
+            try:
+                job_source_registry_service.register_source(
+                    source_key=key,
+                    connector_type=connector_type,
+                    display_name=name,
+                    region_group=region,
+                    config=config,
+                    terms_approved=True,
+                    enabled=True,
+                    priority=100,
+                )
+                created += 1
+            except ValueError:
+                skipped += 1
+        st.success(
+            f"Quick start complete: {created} source(s) added, "
+            f"{skipped} already present."
+        )
+        st.rerun()
 
     _show_source_registration()
     candidates = candidate_service.get_all_candidates()

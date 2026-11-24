@@ -7,6 +7,73 @@ from app.services.extraction_service import extraction_service
 from app.services.resume_service import resume_service
 from sqlalchemy.exc import SQLAlchemyError
 
+
+def show_inline_extraction_review(candidate_id: int, resume_id: int) -> bool:
+    """Render an in-page review and confirm the candidate's extracted details."""
+    extracted_info = extraction_service.get_extraction_for_resume(
+        candidate_id,
+        resume_id,
+    )
+    if extracted_info is None:
+        st.error("The processed resume has no saved extraction to review.")
+        return False
+
+    st.subheader("Review & Confirm Details")
+    st.caption(
+        "Check the extracted information carefully. Existing profile values "
+        "are preserved unless you explicitly choose to replace them."
+    )
+    with st.form(f"profile_inline_review_{extracted_info['id']}"):
+        updated_info = {}
+        text_fields = {
+            "full_name": "Full Name",
+            "email": "Email",
+            "phone": "Phone",
+            "location": "Location",
+            "linkedin": "LinkedIn",
+            "github": "GitHub",
+        }
+        for field, label in text_fields.items():
+            updated_info[field] = st.text_input(
+                label,
+                value=extracted_info[field] or "",
+                key=f"profile_review_{extracted_info['id']}_{field}",
+            )
+        for field, label, height in (
+            ("summary", "Summary", 150),
+            ("experience", "Experience", 200),
+            ("skills", "Skills", 150),
+            ("education", "Education", 200),
+        ):
+            updated_info[field] = st.text_area(
+                label,
+                value=extracted_info[field] or "",
+                height=height,
+                key=f"profile_review_{extracted_info['id']}_{field}",
+            )
+        replace_existing = st.checkbox(
+            "Replace existing profile values with the confirmed resume details",
+            value=False,
+            key=f"profile_review_{extracted_info['id']}_replace",
+        )
+        confirmed = st.form_submit_button("Confirm & Save", type="primary")
+
+    if not confirmed:
+        return False
+    try:
+        extraction_service.save_review(
+            extraction_id=extracted_info["id"],
+            candidate_id=candidate_id,
+            updated_fields=updated_info,
+            is_approved=True,
+            replace_existing=replace_existing,
+        )
+        return True
+    except (ValueError, SQLAlchemyError) as exc:
+        st.error(f"Could not save confirmed details: {exc}")
+        return False
+
+
 def show_review_page():
     """Display the review page for extracted information"""
     st.header("Review Extracted Information")
